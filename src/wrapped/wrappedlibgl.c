@@ -185,6 +185,18 @@ static void* find_get_blob_func_Fct(void* fct)
         lib->path = strdup(BOX64ENV(libgl));                                    \
     else
 
+typedef unsigned int (*uFv_t)(void);
+
+// glGetError — optionally stub to GL_NO_ERROR to avoid Mesa glthread flush overhead
+EXPORT unsigned int my_glGetError(x64emu_t* emu)
+{
+    if(BOX64ENV(gl_noerror))
+        return 0;  // GL_NO_ERROR
+    uFv_t fnc = getBridgeFnc2((void*)R_RIP);
+    if(!fnc) fnc=my->glGetError;
+    return fnc();
+}
+
 #include "wrappedlib_init.h"
 
 // glDebugMessageCallback

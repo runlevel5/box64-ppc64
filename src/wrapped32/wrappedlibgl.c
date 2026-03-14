@@ -500,6 +500,18 @@ EXPORT void my32_glVDPAUUnmapSurfacesNV(x64emu_t* emu, int count, long_t* surfac
     fnc(count, surfaces?surfaces_l:NULL);
 }
 
+typedef unsigned int (*uFv_t)(void);
+
+// glGetError — optionally stub to GL_NO_ERROR to avoid Mesa glthread flush overhead
+EXPORT unsigned int my32_glGetError(x64emu_t* emu)
+{
+    if(BOX64ENV(gl_noerror))
+        return 0;  // GL_NO_ERROR
+    uFv_t fnc = getBridgeFnc2((void*)R_RIP);
+    if(!fnc) fnc=my->glGetError;
+    return fnc();
+}
+
 #include "wrappedlib_init32.h"
 
 gl_wrappers_t* getGLProcWrapper32(box64context_t* context, glprocaddress_t procaddress)
