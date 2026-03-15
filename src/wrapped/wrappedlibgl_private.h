@@ -2125,7 +2125,7 @@ GO(glImportSyncEXT, pFulu)
 //GREMEDY_frame_terminator
 GO(glFrameTerminatorGREMEDY, vFv)
 //GREMEDY_string_marker
-GO(glStringMarkerGREMEDY, vFip)
+GOM(glStringMarkerGREMEDY, vFEip)
 //HP_image_transform
 GO(glGetImageTransformParameterfvHP, vFuup)
 GO(glGetImageTransformParameterivHP, vFuup)

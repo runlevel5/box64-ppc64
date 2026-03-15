@@ -501,6 +501,7 @@ EXPORT void my32_glVDPAUUnmapSurfacesNV(x64emu_t* emu, int count, long_t* surfac
 }
 
 typedef unsigned int (*uFv_t)(void);
+typedef void (*vFip_t)(int, void*);
 
 // glGetError — optionally stub to GL_NO_ERROR to avoid Mesa glthread flush overhead
 EXPORT unsigned int my32_glGetError(x64emu_t* emu)
@@ -510,6 +511,16 @@ EXPORT unsigned int my32_glGetError(x64emu_t* emu)
     uFv_t fnc = getBridgeFnc2((void*)R_RIP);
     if(!fnc) fnc=my->glGetError;
     return fnc();
+}
+
+// glStringMarkerGREMEDY — debug marker, no-op when gl_noerror is set
+EXPORT void my32_glStringMarkerGREMEDY(x64emu_t* emu, int len, void* string)
+{
+    if(BOX64ENV(gl_noerror))
+        return;
+    vFip_t fnc = getBridgeFnc2((void*)R_RIP);
+    if(!fnc) fnc=my->glStringMarkerGREMEDY;
+    fnc(len, string);
 }
 
 #include "wrappedlib_init32.h"
