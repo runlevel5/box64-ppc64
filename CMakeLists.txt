@@ -1242,6 +1242,7 @@ if(PPC64LE_DYNAREC)
         "${BOX64_ROOT}/src/dynarec/ppc64le/ppc64le_printer.c"
         "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_jmpnext.c"
         "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_consts.c"
+        "${BOX64_ROOT}/src/dynarec/ppc64le/updateflags_ppc64le.c"
     )
     set(DYNAREC_ASM
         ${DYNAREC_ASM}
@@ -1252,15 +1253,41 @@ if(PPC64LE_DYNAREC)
     )
 
      set(DYNAREC_PASS
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_helper.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_00.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f0.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f0.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_math.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_logic.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_tests.c"
-     "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_shift.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_helper.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_00.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f0.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f20f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_f30f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_660f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f0.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f20f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_66f30f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_d8.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_d9.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_da.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_db.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_dc.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_dd.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_de.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_df.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_66_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_66_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_66_0f3a.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f2_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f2_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f2_0f3a.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f3_0f.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_avx_f3_0f38.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_tests.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_math.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_logic.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/dynarec_ppc64le_emit_shift.c"
+    "${BOX64_ROOT}/src/dynarec/ppc64le/updateflags_ppc64le_pass.c"
       )
 endif()
 
