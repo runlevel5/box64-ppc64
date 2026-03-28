@@ -842,6 +842,8 @@ void adjustregs(x64emu_t* emu, void* pc)
 #elif defined(LA64)
 #elif defined(RV64)
 #elif defined(PPC64LE)
+    // TODO: implement SIGBUS instruction emulation for PPC64LE
+    // (wide LD/STD to caching-inhibited memory needs aligned access fallback)
 #else
 #error  Unsupported architecture
 #endif

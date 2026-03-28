@@ -1711,20 +1711,30 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 CBZ_NEXT(xRCX);
                 ANDI(x1, xFlags, 1 << F_DF);
                 BNEZ_MARK2(x1);
-                // special optim for large RCX value on forward case only
-                OR(x1, xRSI, xRDI);
-                ANDI(x1, x1, 7);
-                BNEZ_MARK(x1);
-                LI(x6, 8);
-                MARK3;
-                BLT_MARK(xRCX, x6);
-                LD(x1, 0, xRSI);
-                STD(x1, 0, xRDI);
-                ADDI(xRSI, xRSI, 8);
-                ADDI(xRDI, xRDI, 8);
-                ADDI(xRCX, xRCX, -8);
-                BNEZ_MARK3(xRCX);
-                B_NEXT_nocond;
+                IF_UNALIGNED(ip) {
+                    // unaligned path: byte-by-byte only to avoid SIGBUS on CI memory
+                    B_MARK_nocond;
+                } else {
+                    // special optim for large RCX value on forward case only
+                    if (BOX64DRENV(dynarec_safeflags)) {
+                        SUB(x2, xRDI, xRSI);
+                        LI(x6, 8);
+                        BLT_MARK(x2, x6);
+                    }
+                    OR(x1, xRSI, xRDI);
+                    ANDI(x1, x1, 7);
+                    BNEZ_MARK(x1);
+                    LI(x6, 8);
+                    MARK3;
+                    BLT_MARK(xRCX, x6);
+                    LD(x1, 0, xRSI);
+                    STD(x1, 0, xRDI);
+                    ADDI(xRSI, xRSI, 8);
+                    ADDI(xRDI, xRDI, 8);
+                    ADDI(xRCX, xRCX, -8);
+                    BNEZ_MARK3(xRCX);
+                    B_NEXT_nocond;
+                }
                 MARK; // Part with DF==0
                 LBZ(x1, 0, xRSI);
                 STB(x1, 0, xRDI);
