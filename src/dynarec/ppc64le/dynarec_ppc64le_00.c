@@ -1932,17 +1932,38 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 INST_NAME("REP STOSB");
                 CBZ_NEXT(xRCX);
                 ANDI(x1, xFlags, 1 << F_DF);
-                BNEZ_MARK3(x1);
-                // Part with DF==0 (scalar only, no vector fast path)
-                MARK;
+                BNEZ_MARK2(x1);
+                IF_UNALIGNED(ip) {
+                    // unaligned path: byte-by-byte only to avoid SIGBUS on CI memory
+                    B_MARK_nocond;
+                } else {
+                    // special optim for large RCX value on forward case only
+                    ANDI(x1, xRDI, 7);
+                    BNEZ_MARK(x1);
+                    // broadcast low byte of RAX to 8 bytes in x3
+                    ANDI(x3, xRAX, 0xFF);
+                    SLDI(x1, x3, 8);
+                    OR(x3, x3, x1);
+                    SLDI(x1, x3, 16);
+                    OR(x3, x3, x1);
+                    SLDI(x1, x3, 32);
+                    OR(x3, x3, x1);
+                    LI(x6, 8);
+                    MARK3;
+                    BLT_MARK(xRCX, x6);
+                    STD(x3, 0, xRDI);
+                    ADDI(xRDI, xRDI, 8);
+                    ADDI(xRCX, xRCX, -8);
+                    BNEZ_MARK3(xRCX);
+                    B_NEXT_nocond;
+                }
+                MARK; // Part with DF==0
                 STB(xRAX, 0, xRDI);
                 ADDI(xRDI, xRDI, 1);
                 ADDI(xRCX, xRCX, -1);
                 BNEZ_MARK(xRCX);
                 B_NEXT_nocond;
-                // Part with DF==1
-                MARK3;
-                MARK2;
+                MARK2; // Part with DF==1
                 STB(xRAX, 0, xRDI);
                 ADDI(xRDI, xRDI, -1);
                 ADDI(xRCX, xRCX, -1);
