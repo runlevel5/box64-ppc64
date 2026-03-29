@@ -21,7 +21,7 @@
 #include "dynarec_ppc64le_functions.h"
 #include "../dynarec_helper.h"
 
-// emit ADD32 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit ADD32 instruction, from s1, s2, store result in s1 using s3, s4 and s5 as scratch
 void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5)
 {
     IFX (X_PEND) {
@@ -103,7 +103,7 @@ void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit ADD32 instruction, from s1, constant c, store result in s1 using s3 and s4 as scratch
+// emit ADD32 instruction, from s1, constant c, store result in s1 using s2, s3, s4 and s5 as scratch
 void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s2, int s3, int s4, int s5)
 {
     if ((s1 == xRSP) && (BOX64DRENV(dynarec_safeflags) < 2) && (!dyn->insts || (dyn->insts[ninst].x64.gen_flags == X_PEND) || (!BOX64ENV(dynarec_df) && (dyn->insts[ninst].x64.gen_flags == X_ALL)))) {
@@ -266,7 +266,7 @@ void emit_add8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit ADD8 instruction, from s1, const c, store result in s1 using s3 and s4 as scratch
+// emit ADD8 instruction, from s1, const c, store result in s1 using s2, s3 and s4 as scratch
 void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, int s3, int s4)
 {
     IFX (X_PEND) {
@@ -332,7 +332,7 @@ void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, in
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit ADD16 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit ADD16 instruction, from s1, s2, store result in s1 using s3, s4 and s5 as scratch
 void emit_add16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5)
 {
     IFX (X_PEND) {
@@ -398,7 +398,7 @@ void emit_add16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit SUB8 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit SUB8 instruction, from s1, s2, store result in s1 using s3, s4 and s5 as scratch
 void emit_sub8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5)
 {
     IFX (X_PEND) {
@@ -443,7 +443,7 @@ void emit_sub8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, in
     emit_sub8(dyn, ninst, s1, s2, s3, s4, s5);
 }
 
-// emit SUB16 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit SUB16 instruction, from s1, s2, store result in s1 using s3, s4 and s5 as scratch
 void emit_sub16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5)
 {
     IFX (X_PEND) {
@@ -484,7 +484,7 @@ void emit_sub16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit SUB32 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit SUB32 instruction, from s1, s2, store result in s1 using s3, s4 and s5 as scratch
 void emit_sub32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5)
 {
     IFX (X_PEND) {
@@ -913,7 +913,7 @@ void emit_neg16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit ADC8 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit ADC8 instruction, from s1, s2, store result in s1 using s3, s4 and s5 as scratch
 void emit_adc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5)
 {
     IFX (X_PEND) {
@@ -986,7 +986,7 @@ void emit_adc8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s3, in
     emit_adc8(dyn, ninst, s1, s5, s3, s4, s6);
 }
 
-// emit ADC16 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit ADC16 instruction, from s1, s2, store result in s1 using s3, s4 and s5 as scratch
 void emit_adc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5)
 {
     IFX (X_PEND) {
@@ -1053,7 +1053,7 @@ void emit_adc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit ADC32 instruction, from s1, s2, store result in s1 using s3 and s4 as scratch
+// emit ADC32 instruction, from s1, s2, store result in s1 using s3, s4, s5 and s6 as scratch
 void emit_adc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5, int s6)
 {
     IFX (X_PEND) {
@@ -1191,7 +1191,7 @@ void emit_inc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit INC16 instruction, from s1, store result in s1 using s3 and s4 as scratch
+// emit INC16 instruction, from s1, store result in s1 using s2, s3 and s4 as scratch
 void emit_inc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4)
 {
     SET_DFNONE();
@@ -1244,7 +1244,7 @@ void emit_inc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit INC32 instruction, from s1, store result in s1 using s3 and s4 as scratch
+// emit INC32 instruction, from s1, store result in s1 using s2, s3, s4 and s5 as scratch
 void emit_inc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5)
 {
     SET_DFNONE();
@@ -1348,7 +1348,7 @@ void emit_dec8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit DEC16 instruction, from s1, store result in s1 using s3 and s4 as scratch
+// emit DEC16 instruction, from s1, store result in s1 using s2, s3, s4 and s5 as scratch
 void emit_dec16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5)
 {
     SET_DFNONE();
@@ -1399,7 +1399,7 @@ void emit_dec16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
     if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s1, xZR, s3, xZR);
 }
 
-// emit DEC32 instruction, from s1, store result in s1 using s3 and s4 as scratch
+// emit DEC32 instruction, from s1, store result in s1 using s2, s3, s4 and s5 as scratch
 void emit_dec32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5)
 {
     SET_DFNONE();
