@@ -1319,16 +1319,9 @@
             OR(xFlags, xFlags, scratch1);                             \
         }                                                             \
         IFX (X_CF) {                                                  \
-            /* cf = bc & (1<<(width-1)) */                            \
-            if ((width) == 8) {                                       \
-                ANDId(scratch1, scratch2, 0x80);                      \
-            } else {                                                  \
-                SRDI(scratch1, scratch2, (width) - 1);                \
-                if ((width) != 64) ANDId(scratch1, scratch1, 1);      \
-            }                                                         \
-            CMPDI(scratch1, 0);                                       \
-            BEQ(8);                                                   \
-            ORI(xFlags, xFlags, 1 << F_CF);                           \
+            /* cf = bc >> (width-1) & 1 (branchless) */               \
+            BF_EXTRACT(scratch1, scratch2, (width) - 1, (width) - 1); \
+            BF_INSERT(xFlags, scratch1, F_CF, F_CF);                  \
         }                                                             \
         IFX (X_OF) {                                                  \
             /* of = ((bc >> (width-2)) ^ (bc >> (width-1))) & 0x1; */ \
@@ -1336,9 +1329,7 @@
             SRDI(scratch2, scratch1, 1);                              \
             XOR(scratch1, scratch1, scratch2);                        \
             ANDId(scratch1, scratch1, 1);                             \
-            CMPDI(scratch1, 0);                                       \
-            BEQ(8);                                                   \
-            ORI(xFlags, xFlags, 1 << F_OF);                           \
+            BF_INSERT(xFlags, scratch1, F_OF, F_OF);                  \
         }                                                             \
     }
 
