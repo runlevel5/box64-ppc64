@@ -5,7 +5,7 @@
 #   Run single test:   ./run_tests.sh test_bit_extract
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BOX64="${HOME}/box64/build/box64"
+BOX64="${BOX64:-${HOME}/box64/build/box64}"
 PASS=0
 FAIL=0
 TOTAL=0

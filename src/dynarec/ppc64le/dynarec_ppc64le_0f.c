@@ -939,18 +939,18 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     if (MODREG) {                                                                            \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                            \
         if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            /* CMPD_ZR(4) + BC(4) + MR(4) → MARK2; ZEROUP unconditional */                   \
-            NATIVEJUMP(NATNO, 12);                                                           \
+            /* Branchless: CMPD_ZR(4) + ISEL(4) = 8 bytes */                                 \
+            NATIVEMV(NATYES, gd, ed);                                                        \
         } else {                                                                             \
             B##NO##_MARK2(tmp1);                                                             \
+            MR(gd, ed);                                                                      \
+            MARK2;                                                                           \
         }                                                                                    \
-        MR(gd, ed);                                                                          \
-        MARK2;                                                                               \
         if (!rex.w) ZEROUP(gd);                                                              \
     } else {                                                                                 \
         addr = geted(dyn, addr, ninst, nextop, &ed, tmp2, tmp3, &fixedaddress, rex, NULL, DS_DISP, 0); \
         if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            /* CMPD_ZR(4) + BC(4) + LDxw(4) → MARK2; ZEROUP unconditional */                 \
+            /* CMPD_ZR(4) + BC(4) + LDxw(4) → past load; ZEROUP unconditional */              \
             NATIVEJUMP(NATNO, 12);                                                           \
         } else {                                                                             \
             B##NO##_MARK2(tmp1);                                                             \

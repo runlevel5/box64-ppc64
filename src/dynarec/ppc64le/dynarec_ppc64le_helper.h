@@ -2482,18 +2482,75 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     } while (0)
 
 // --- 4-arg MV##COND##_: NATIVEMV (dst = (op1 COND op2) ? src : dst) ---
-// Not used by PPC64LE opcode tables currently. Stub with NOPs.
-#define MV__(a, b, c, d)    NOP()
-#define MVGT_(a, b, c, d)   NOP()
-#define MVLE_(a, b, c, d)   NOP()
-#define MVLT_(a, b, c, d)   NOP()
-#define MVGE_(a, b, c, d)   NOP()
-#define MVGTU_(a, b, c, d)  NOP()
-#define MVLEU_(a, b, c, d)  NOP()
-#define MVLTU_(a, b, c, d)  NOP()
-#define MVGEU_(a, b, c, d)  NOP()
-#define MVEQ_(a, b, c, d)   NOP()
-#define MVNE_(a, b, c, d)   NOP()
+// Pattern: CMPD/CMPLD sets CR0, then ISEL selects branchlessly.
+// ISEL(RT, RA, RB, BC): if CR[BC] set, RT=RA; else RT=RB.
+// Note: ISEL treats RA=0 as literal 0 (not GPR0). dst/src are always >= GPR3
+// (x86 regs map to GPR14-29, scratch GPR3-8,10-11), so this is safe.
+
+// Signed conditions: use CMPD_ZR (handles xZR==r0 safely)
+#define MVEQ_(dst, src, r1, r2)                       \
+    do {                                               \
+        CMPD_ZR(r1, r2);                               \
+        ISEL(dst, src, dst, BI(CR0, CR_EQ));            \
+    } while (0)
+
+#define MVNE_(dst, src, r1, r2)                       \
+    do {                                               \
+        CMPD_ZR(r1, r2);                               \
+        ISEL(dst, dst, src, BI(CR0, CR_EQ));            \
+    } while (0)
+
+#define MVLT_(dst, src, r1, r2)                       \
+    do {                                               \
+        CMPD_ZR(r1, r2);                               \
+        ISEL(dst, src, dst, BI(CR0, CR_LT));            \
+    } while (0)
+
+#define MVGE_(dst, src, r1, r2)                       \
+    do {                                               \
+        CMPD_ZR(r1, r2);                               \
+        ISEL(dst, dst, src, BI(CR0, CR_LT));            \
+    } while (0)
+
+#define MVGT_(dst, src, r1, r2)                       \
+    do {                                               \
+        CMPD_ZR(r1, r2);                               \
+        ISEL(dst, src, dst, BI(CR0, CR_GT));            \
+    } while (0)
+
+#define MVLE_(dst, src, r1, r2)                       \
+    do {                                               \
+        CMPD_ZR(r1, r2);                               \
+        ISEL(dst, dst, src, BI(CR0, CR_GT));            \
+    } while (0)
+
+// Unsigned conditions: use CMPLD_ZR
+#define MVLTU_(dst, src, r1, r2)                      \
+    do {                                               \
+        CMPLD_ZR(r1, r2);                              \
+        ISEL(dst, src, dst, BI(CR0, CR_LT));            \
+    } while (0)
+
+#define MVGEU_(dst, src, r1, r2)                      \
+    do {                                               \
+        CMPLD_ZR(r1, r2);                              \
+        ISEL(dst, dst, src, BI(CR0, CR_LT));            \
+    } while (0)
+
+#define MVGTU_(dst, src, r1, r2)                      \
+    do {                                               \
+        CMPLD_ZR(r1, r2);                              \
+        ISEL(dst, src, dst, BI(CR0, CR_GT));            \
+    } while (0)
+
+#define MVLEU_(dst, src, r1, r2)                      \
+    do {                                               \
+        CMPLD_ZR(r1, r2);                              \
+        ISEL(dst, dst, src, BI(CR0, CR_GT));            \
+    } while (0)
+
+// Unconditional: always move (dead code path, kept for macro expansion)
+#define MV__(dst, src, r1, r2)   MR(dst, src)
 
 #define NATIVEJUMP_safe(COND, val) \
     B##COND##_safe(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
