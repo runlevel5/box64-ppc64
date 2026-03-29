@@ -1,34 +1,3 @@
-# PPC64LE Native Flags Optimization Context
-
-> Session context saved for continuity across sessions.
-> Last updated: Sun Mar 29 2026
-
-## Current State
-
-### Branches
-- **ppc64le-jit**: Base branch being upstreamed. Latest commits: `adb964763` (Phase 3 branchless flag materialization), `271f4e111` (Phase 2 SF fusion), `9bb808020` (Phase 1 sign fusion).
-- **ppc64le-more-opcodes**: PR #3720 branch. User squashed and pushed SF changes.
-
-### PR #3720 Review Items (from ptitSeb)
-1. **SF flag consistency** -- DONE. All 24 IFX(X_SF) blocks converted to 2-op BF_EXTRACT+BF_INSERT.
-2. **REP MOVSB alignment / SIGBUS** -- Researched. PPC64LE already handles via reactive SIGBUS->recompile mechanism. Need to respond to ptitSeb.
-3. **Native flags optimization** -- IN PROGRESS. Research phase complete for all 4 backends.
-
-### Build Environment
-- POWER9 test box: `ssh tle@192.168.1.247`
-- Build dir: `/tmp/box64_clean_ZEPRUc` (must do clean cmake when switching branches)
-- Build: `cmake .. -DPPC64LE=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo && make -j32`
-- Test: `ctest -j32` + `bash tests/dynarec/run_dynarec_tests.sh`
-- ppc64le-jit: 34 ctests, ppc64le-more-opcodes: 33 ctests
-- NASM dynarec tests: 52/52 pass on ppc64le-jit
-- POWER9 shell is fish -- bash loops need `bash -c '...'` wrapper
-
-### Rules
-- **No Edit tool on dynarec files** -- causes mass reformatting. Use `sed -i ''` or Python scripts.
-- AI-written code is acceptable for this fork (user overrode AGENTS.md policy).
-
----
-
 ## Four-Backend Native Flag System Comparison
 
 box64 supports four dynarec backends. They use **two fundamentally different models** for native flag optimization:
@@ -51,18 +20,19 @@ box64 supports four dynarec backends. They use **two fundamentally different mod
 | **Per-insn metadata** | 12 fields (bitmask-based) | 8 fields (boolean + registers) | 9 fields (identical to PPC64LE + `nat_flags_sf`) | 8 fields (same as PPC64LE, no `nat_flags_sf`) |
 | **NATIVEJUMP** | N/A (uses `Bcc` directly) | `CMPD_ZR + Bcond + NOP` (3 insns) | Compare-and-branch (1-2 insns) | Compare-and-branch (1-2 insns) |
 | **NATIVESET (SETcc)** | Implemented | Implemented (`CMP + MFCR + RLWINM`) | Implemented | Implemented |
-| **NATIVEMV (CMOVcc)** | Implemented | **NOP stubs** | Implemented | Implemented |
+| **NATIVEMV (CMOVcc)** | Implemented | **Implemented (ISEL)** | Implemented | Implemented |
 
 ### Key Insight
 
-LA64 and RV64 are essentially **clones of PPC64LE's fusion model**, adapted for their compare-and-branch ISAs. All three share identical per-instruction struct fields, the same `updateNativeFlags()` backward-walk algorithm, the same `NAT_FLAGS_OPS` / `NATIVEJUMP` / `NATIVESET` macro patterns, and the same `READFLAGS_FUSION` pass-0 logic.
+LA64 and RV64 are essentially what PPC64LE's fusion model is adaopted from. All three share identical per-instruction struct fields, the same `updateNativeFlags()` backward-walk algorithm, the same `NAT_FLAGS_OPS` / `NATIVEJUMP` / `NATIVESET` macro patterns, and the same `READFLAGS_FUSION` pass-0 logic.
 
 This means **the fusion model is the correct architectural fit for PPC64LE** — not ARM64's propagation model. ARM64 propagation is motivated by hardware NZCV persistence, which PPC64LE (and LA64/RV64) lack.
 
-**The real gaps are in PPC64LE's fusion coverage**, not the model itself:
-1. **NATIVEMV is unimplemented** — both LA64 and RV64 have it working
-2. **NAT_FLAGS_ENABLE_SF is dead code** — LA64 calls it in CMP/TEST
+**The remaining gaps in PPC64LE's fusion coverage**:
+1. ~~**NATIVEMV is unimplemented**~~ — ✅ DONE (commit `5b7626078`, ISEL-based)
+2. ~~**NAT_FLAGS_ENABLE_SF is dead code**~~ — ✅ DONE (commit `271f4e111`, called in 24 emit functions)
 3. **No 8/16-bit fusion** — LA64 handles some via sign/zero extension
+4. **ADD/SUB carry fusion** — JC/JNC after ADD/SUB doesn't fuse (see Gap 2)
 
 ---
 
@@ -192,7 +162,7 @@ For ADD/SUB/AND/OR/XOR, operands are `(result, xZR)` — consumer uses `BEQ/BNE 
 
 ### NATIVEMV — Implemented
 
-LA64 implements conditional move macros (`MVLTU_`, `MVGEU_`, `MVNE_`, `MVEQ_`, etc.) using branch-over-move patterns or LoongArch's `MASKEQZ`/`MASKNEZ` + `OR` sequences. This contrasts with PPC64LE where all MV macros are NOP stubs.
+LA64 implements conditional move macros (`MVLTU_`, `MVGEU_`, `MVNE_`, `MVEQ_`, etc.) using branch-over-move patterns or LoongArch's `MASKEQZ`/`MASKNEZ` + `OR` sequences. PPC64LE now also has NATIVEMV implemented using ISEL (commit `5b7626078`).
 
 ---
 
@@ -266,7 +236,7 @@ RV64 implements conditional move macros using branch-over-move patterns: `CMPD(o
 | JC / JNC | YES (NF_CF) | YES (GEU/LTU) | YES (GEU/LTU) | YES (GEU/LTU) | All fusion backends use unsigned compare |
 | JZ / JNZ | YES (NF_EQ) | YES (NE/EQ) | YES (NE/EQ) | YES (NE/EQ) | Universal support |
 | JBE / JA | YES (NF_EQ+NF_CF) | YES (GTU/LEU) | YES (GTU/LEU) | YES (GTU/LEU) | All fusion backends handle compound |
-| JS / JNS | YES (NF_SF) | YES* (GE/LT) | YES* (GE/LT) | YES* (GE/LT) | *Only if nat_flags_sign set (CMP/TEST) |
+| JS / JNS | YES (NF_SF) | YES* (GE/LT) | YES* (GE/LT) | YES* (GE/LT) | *Requires nat_flags_sign; PPC64LE also enables via NAT_FLAGS_ENABLE_SF for arithmetic |
 | JP / JNP | **NO** | **NO** | **NO** | **NO** | No backend has hardware parity |
 | JL / JGE | YES (NF_SF+NF_VF) | YES (GE/LT) | YES (GE/LT) | YES (GE/LT) | All use signed compare |
 | JLE / JG | YES (NF_SF+NF_VF+NF_EQ) | YES (GT/LE) | YES (GT/LE) | YES (GT/LE) | All use signed compare |
@@ -278,12 +248,12 @@ RV64 implements conditional move macros using branch-over-move patterns: `CMPD(o
 |----------|-------|---------|------|------|
 | CMP 32/64 | Full (NF_EQ+SF+VF+CF) | Full (ZF+CF+sign) | Full (ZF+CF+sign) | Full (ZF+CF+sign) |
 | TEST 32/64 | Full | Full | Full | Full |
-| ADD 32/64 | Full | ZF only | ZF only | ZF only |
-| SUB 32/64 | Full | ZF only | ZF only | ZF only |
-| AND/OR/XOR 32/64 | Full (NF_EQ+SF) | ZF only | ZF only | ZF only |
-| NEG/INC/DEC 32/64 | Full | ZF only | ZF only | ZF only |
-| ADC/SBB 32/64 | Partial | ZF only | ZF only | ZF only |
-| Shifts | Partial (NF_EQ+SF) | ZF only | ZF only | ZF only |
+| ADD 32/64 | Full | ZF+SF | ZF only | ZF only |
+| SUB 32/64 | Full | ZF+SF | ZF only | ZF only |
+| AND/OR/XOR 32/64 | Full (NF_EQ+SF) | ZF+SF | ZF only | ZF only |
+| NEG/INC/DEC 32/64 | Full | ZF+SF | ZF only | ZF only |
+| ADC/SBB 32/64 | Partial | ZF+SF | ZF only | ZF only |
+| Shifts | Partial (NF_EQ+SF) | ZF+SF | ZF only | ZF only |
 | 8/16-bit ops | Limited | **None** | Some (via ext) | **None** |
 
 ### Consumer Coverage (Which Operations Use Fusion)
@@ -292,7 +262,7 @@ RV64 implements conditional move macros using branch-over-move patterns: `CMPD(o
 |----------|-------|---------|------|------|
 | Jcc (branch) | All via NZCV | NATIVEJUMP | NATIVEJUMP | NATIVEJUMP |
 | SETcc | Via CSET | NATIVESET (wired) | NATIVESET | NATIVESET |
-| CMOVcc | Via CSEL | **NOP stubs** | NATIVEMV | NATIVEMV |
+| CMOVcc | Via CSEL | **NATIVEMV (ISEL)** | NATIVEMV | NATIVEMV |
 
 ### Instruction Count Impact (CMP rax, rbx; JZ target)
 
@@ -307,31 +277,29 @@ Note: LA64 and RV64 achieve better fused instruction counts than PPC64LE because
 
 ## PPC64LE Fusion Gaps to Address
 
-### Gap 1: Implement NATIVEMV for CMOVcc ⬅ HIGHEST PRIORITY
-- **Current state:** All `MV##COND##_` macros are NOP stubs. PPC64LE is the **only** fusion backend missing this.
-- **What's needed:** Implement conditional move using PPC64LE's `ISEL` instruction or CMP + branch-over-MV pattern.
-- **PPC64LE has ISEL:** `isel RT, RA, RB, BI` — selects RA or RB based on CR bit. Perfect for CMOVcc.
-- **Reference implementations:** RV64 uses branch-over-move; LA64 uses `MASKEQZ`/`MASKNEZ` + `OR`.
-- **Difficulty:** MEDIUM — need to implement ISEL-based MV macros
+### Gap 1: Implement NATIVEMV for CMOVcc — ✅ DONE
+- **Implemented:** Commit `5b7626078` replaced all 11 `MV##COND##_` NOP stubs with branchless ISEL-based conditional moves.
+- **Pattern:** `CMPD_ZR(op1, op2)` + `ISEL(dst, src, dst, BI(cr, bit))` (2 insns, 8 bytes). Inverted conditions swap RA/RB in ISEL.
+- **CMOVcc handler** in `_0f.c` updated: MODREG path uses `NATIVEMV(NATYES, gd, ed)` instead of branch-over-move (saves 1 insn/4 bytes per CMOVcc).
+- **Tested:** `test_cmovcc_fusion` 64/64 PASS, zero regressions across 42/52 NASM tests and 16/34 ctest.
 
 ### Gap 2: ADD/SUB Carry Fusion (JC/JNC after ADD/SUB)
-- **Current state:** ADD/SUB only fuse for JZ/JNZ (no `NAT_FLAGS_ENABLE_CARRY()` call)
+- **Current state:** ADD/SUB fuse for JZ/JNZ + JS/JNS (no `NAT_FLAGS_ENABLE_CARRY()` call for carry)
 - **What's needed:** Call `NAT_FLAGS_ENABLE_CARRY()` in emit_add32, emit_sub32, etc.
 - **PPC64LE mechanism:** At branch site, use unsigned CMPLD to reconstruct carry
 - **Challenge:** ADD overflow/carry can't be recovered from a simple CMP of operands. Fusion saves the TWO input operands, then does CMP at branch. For carry after ADD: carry = (result < op1), but fusion stores (op1, op2), not (result, op1). Need to figure out if the existing fusion mechanism can express this.
 - **Difficulty:** MEDIUM — may need new comparison patterns or result-based fusion
 
-### Gap 3: Wire Up NATIVESET for SETcc
-- **Current state:** `NATIVESET(COND, rd)` macro exists and expands to `S##COND##_(rd, op1, op2)`. The S-macros (SLT_, SGE_, SEQ_, etc.) are fully implemented: CMP + MFCR + RLWINM (+ XORI for inverted).
-- **What's needed:** Hook `NATIVESET` into the SETcc opcode handlers. Currently SETcc reads xFlags.
-- **Difficulty:** LOW — macros exist, just need wiring
+### Gap 3: Wire Up NATIVESET for SETcc — ✅ ALREADY DONE
+- **Current state:** NATIVESET is fully wired into SETcc handlers (0x90-0x9F) in `_0f.c` lines 1024-1049. The `GOCOND` SETcc expansion checks `nat_flags_fusion` and calls `NATIVESET(NATYES, tmp3)` for the fusion path, falling back to xFlags extraction otherwise.
+- **Supported conditions:** All except JO/JNO and JP/JNP (same as NATIVEJUMP/NATIVEMV).
+- **No action needed.**
 
-### Gap 4: Enable NAT_FLAGS_ENABLE_SF for JS/JNS
-- **Current state:** `NAT_FLAGS_ENABLE_SF()` is defined but never called anywhere.
-- **What's needed:** Call it in emit functions for producers that can support sign-flag fusion.
-- **For CMP/TEST:** Already handled via `nat_flags_sign` (JS/JNS works if both `nat_flags_sign` and `nat_flags_sf` are set).
-- **For ADD/SUB:** Would need signed CMPD of operands to determine sign of result — but sign of (a + b) != sign relationship of (a vs b). Same fundamental problem as carry.
-- **Difficulty:** LOW for CMP/TEST (just enable), HARD for ADD/SUB (mathematically different)
+### Gap 4: Enable NAT_FLAGS_ENABLE_SF for JS/JNS — ✅ ALREADY DONE
+- **Current state:** `NAT_FLAGS_ENABLE_SF()` is called in all 24 arithmetic emit functions (Phase 2 SF fusion, commit `271f4e111`). `NAT_FLAGS_ENABLE_SIGN()` and `NAT_FLAGS_ENABLE_CARRY()` are called in CMP/TEST emit functions.
+- **CMP/TEST:** Fully enabled — both SIGN and CARRY fusion active.
+- **ADD/SUB/NEG/INC/DEC/ADC/SBB:** SF fusion enabled via `NAT_FLAGS_ENABLE_SF()`.
+- **No action needed.**
 
 ### Gap 5: Support JO/JNO (Overflow)
 - **Current state:** JO/JNO always fall back to xFlags extraction. Same limitation on LA64 and RV64.
@@ -351,7 +319,7 @@ Note: LA64 and RV64 achieve better fused instruction counts than PPC64LE because
 | File | Purpose |
 |------|---------|
 | `src/dynarec/ppc64le/dynarec_ppc64le_private.h` | instruction_ppc64le_t struct with nat_flags fields (lines 128-136, 143) |
-| `src/dynarec/ppc64le/dynarec_ppc64le_helper.h` | NAT_FLAGS_OPS (823-835), GOCOND (1896-1974), Bcond_safe (1536-1664), NATIVESET (1848), NATIVEMV (1851), S##COND macros (1744-1826), MV##COND macros (1830-1840, all NOPs) |
+| `src/dynarec/ppc64le/dynarec_ppc64le_helper.h` | NAT_FLAGS_OPS (823-835), GOCOND (1896-1974), Bcond_safe (1536-1664), NATIVESET (1848), NATIVEMV (1851), S##COND macros (1744-1826), MV##COND macros (2483-2552, ISEL-based) |
 | `src/dynarec/ppc64le/dynarec_ppc64le_functions.c` | updateNativeFlags() (448-476), get_free_scratch() (478-495) |
 | `src/dynarec/ppc64le/dynarec_ppc64le_pass0.h` | READFLAGS_FUSION (17-33), SETFLAGS (34-47), SCRATCH_USAGE (94-97) |
 | `src/dynarec/ppc64le/dynarec_ppc64le_emit_math.c` | All emit_* functions |
@@ -449,8 +417,8 @@ Signed: BEQ/BNE/BLT/BGE/BGT/BLE. Unsigned: BLTU/BGEU/BGTU/BLEU. Dead: B__ (3 NOP
 Pattern: `CMPD_ZR(r1,r2) + MFCR(dst) + RLWINM(dst,dst,bit,31,31)` [+ XORI for inverted]
 Implemented: SLT_, SGT_, SEQ_, SGE_, SLE_, SNE_, SLTU_, SGTU_, SGEU_, SLEU_, S__ (always 1).
 
-### NATIVEMV macros (lines 1830-1840 of helper.h)
-ALL are NOP stubs -- not implemented. This is PPC64LE's biggest gap vs LA64/RV64.
+### NATIVEMV macros (lines 2483-2552 of helper.h)
+Implemented using ISEL instruction (commit `5b7626078`). Pattern: `CMPD_ZR/CMPLD_ZR(op1,op2) + ISEL(dst,src,dst,BI(cr,bit))`. Inverted conditions (NE, GE, LE, GEU, LEU) swap RA/RB operands in ISEL. All 11 macros: MVLT_, MVGE_, MVGT_, MVLE_, MVEQ_, MVNE_, MVLTU_, MVGEU_, MVGTU_, MVLEU_, MV__ (unconditional MR).
 
 ### IFXORNAT and IFX_PENDOR0 (lines 639-640 of helper.h)
 - `IFXORNAT(A)`: execute if gen_flags needs A OR if fusion is active

@@ -351,6 +351,7 @@ Performance optimization that replaces branchy flag materialization patterns wit
 | `9bb808020` | Phase 1 | Sign fusion for 14 logic emit functions (AND/OR/XOR) | 14 | — |
 | `271f4e111` | Phase 2 | SF fusion for 24 arithmetic emit functions (ADD/SUB/NEG/INC/DEC/ADC/SBB) + pass0.h fix | 24 | — |
 | `adb964763` | Phase 3 | Branchless flag materialization (all remaining branchy patterns) | 151 | -121 |
+| `5b7626078` | NATIVEMV | Branchless ISEL-based CMOVcc fusion (replaces NOP stubs) | 11 macros | — |
 
 **Phase 3 breakdown** — 151 branchy patterns eliminated across 5 files:
 
