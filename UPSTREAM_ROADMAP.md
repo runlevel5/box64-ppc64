@@ -2,7 +2,7 @@
 
 Status tracker for upstreaming opcodes from the `ppc64le-dynarec` branch to `upstream/main` (ptitSeb/box64).
 
-## Current State (as of 2026-03-27)
+## Current State (as of 2026-03-29)
 
 ### Infrastructure: 100% Upstream
 All dynarec scaffolding, emitter, helper macros, functions, printer, assembly stubs are upstream.
@@ -336,6 +336,49 @@ endif()
 | `test_32bit_into` | 4 | PASS (dynarec == interpreter) |
 | `test_32bit_pushad_popad` | 12 | PASS (dynarec == interpreter) |
 | `test_32bit_segment_push` | 8 | FAIL (POP DS pre-existing bug) |
+
+### Phase 10: Native Flag Fusion Optimization
+
+Performance optimization that replaces branchy flag materialization patterns with branchless PPC64LE sequences. This is a pure optimization — no new opcodes, no behavioral changes. All changes are in emit functions and helper macros.
+
+**Motivation**: The original emit functions used branch-based flag materialization: test a condition, branch over an ORI to set the flag bit. On PPC64LE (in-order POWER9), mispredicted branches cost 10-15 cycles. Branchless sequences using bit extraction and insertion are deterministic and typically faster.
+
+#### Implemented (on `ppc64le-jit` branch)
+
+| Commit | Phase | Description | Sites | Net lines |
+|--------|-------|-------------|-------|-----------|
+| `0592ac05a` | Phase 0 | 230 NASM fusion tests (jcc, setcc, cmovcc) | — | +3,858 |
+| `9bb808020` | Phase 1 | Sign fusion for 14 logic emit functions (AND/OR/XOR) | 14 | — |
+| `271f4e111` | Phase 2 | SF fusion for 24 arithmetic emit functions (ADD/SUB/NEG/INC/DEC/ADC/SBB) + pass0.h fix | 24 | — |
+| `adb964763` | Phase 3 | Branchless flag materialization (all remaining branchy patterns) | 151 | -121 |
+
+**Phase 3 breakdown** — 151 branchy patterns eliminated across 5 files:
+
+| Flag | Sites | Branchless replacement | Files |
+|------|-------|----------------------|-------|
+| ZF | 72 | `CNTLZD(scratch,reg); SRDI(scratch,scratch,6); BF_INSERT(xFlags,scratch,F_ZF,F_ZF)` | all 4 emit files |
+| SF | 44 | `BF_EXTRACT(scratch,reg,sign_bit,sign_bit); BF_INSERT(xFlags,scratch,F_SF,F_SF)` | emit_logic, emit_tests, emit_shift |
+| AF | 17 | `ANDId(scratch,chain,8); SRDI(scratch,scratch,3); BF_INSERT(xFlags,scratch,F_AF,F_AF)` | emit_math |
+| CF | 13 | Various: `BF_EXTRACT` for shifts, `CNTLZD+XORI` for NEG, `SRDI` for ADD overflow | emit_math |
+| OF | 5 | `BF_INSERT(xFlags,scratch,F_OF,F_OF)` (scratch already 0/1 from prior computation) | helper.h (CALC_SUB_FLAGS), emit_math (NEG) |
+
+**Zero branchy flag patterns remain** in any emit file after Phase 3. All `BEQ(8)`, `BGE(8)`, and `BNE(8)` branch-over-ORI sequences have been eliminated.
+
+**Key design patterns**:
+- **ZF**: `CNTLZD` returns 64 for zero input; `SRDI(scratch,scratch,6)` maps 64→1, all others→0. 3 insns, 0 branches.
+- **SF**: `BF_EXTRACT` at the sign bit position (7/15/31/63 depending on operand width). 2 insns, 0 branches.
+- **AF**: Auxiliary carry is bit 3 of the half-carry chain. `ANDId` + `SRDI(3)` isolates it. 3 insns, 0 branches.
+- **CF**: Width-dependent. ADD: `BF_EXTRACT` at overflow bit. NEG: `CNTLZD+SRDI+XORI` (CF = result != 0). 2-4 insns, 0 branches.
+- **OF**: Already computed as 0/1 by prior arithmetic; direct `BF_INSERT`. 1 insn, 0 branches.
+
+#### Upstreaming strategy
+
+These optimizations apply to emit functions that are already upstream. The upstream versions still use branchy patterns. Upstreaming options:
+1. **Incremental PRs**: One PR per flag type (SF, ZF, AF, CF, OF) — easier to review but more PRs
+2. **Single PR**: All 151 transformations in one PR — matches the single-commit approach used on `ppc64le-jit`
+3. **Fold into opcode PRs**: Apply branchless patterns as emit functions are upstreamed — but most emit functions are already upstream with branchy code
+
+Recommendation: A single PR with clear commit message explaining the branchless templates, after all current opcode PRs are merged. The transformation is mechanical and well-tested (34/34 ctest, 52/52 NASM tests).
 
 ## Upstream Style Reference
 
