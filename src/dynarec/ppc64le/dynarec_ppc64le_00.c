@@ -486,7 +486,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGBEB(x1, x2, 0);
-            emit_sub8(dyn, ninst, ed, gd, x4, x5, x6);
+            emit_sub8(dyn, ninst, ed, gd, x4, x5, x6, x3);
             EBBACK();
             break;
         case 0x29:
@@ -495,7 +495,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGD;
             GETED(0);
-            emit_sub32(dyn, ninst, rex, ed, gd, x3, x4, x5);
+            emit_sub32(dyn, ninst, rex, ed, gd, x3, x4, x5, x6);
             WBACK;
             break;
         case 0x2A:
@@ -503,7 +503,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGBEB(x1, x2, 0);
-            emit_sub8(dyn, ninst, gd, ed, x4, x5, x6);
+            emit_sub8(dyn, ninst, gd, ed, x4, x5, x6, x3);
             GBBACK();
             break;
         case 0x2B:
@@ -512,21 +512,21 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGD;
             GETED(0);
-            emit_sub32(dyn, ninst, rex, gd, ed, x3, x4, x5);
+            emit_sub32(dyn, ninst, rex, gd, ed, x3, x4, x5, x6);
             break;
         case 0x2C:
             INST_NAME("SUB AL, Ib");
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             u8 = F8;
             ANDI(x1, xRAX, 0xff);
-            emit_sub8c(dyn, ninst, x1, u8, x2, x3, x4, x5);
+            emit_sub8c(dyn, ninst, x1, u8, x2, x3, x4, x5, x6);
             BF_INSERT(xRAX, x1, 7, 0);
             break;
         case 0x2D:
             INST_NAME("SUB EAX, Id");
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             i64 = F32S;
-            emit_sub32c(dyn, ninst, rex, xRAX, i64, x2, x3, x4, x5);
+            emit_sub32c(dyn, ninst, rex, xRAX, i64, x2, x3, x4, x5, x6);
             break;
         case 0x2E:
             INST_NAME("CS:");
@@ -1104,7 +1104,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEB(x1, 1);
                     u8 = F8;
-                    emit_sub8c(dyn, ninst, x1, u8, x2, x4, x5, x6);
+                    emit_sub8c(dyn, ninst, x1, u8, x2, x4, x5, x6, x3);
                     EBBACK();
                     break;
                 case 6: // XOR
@@ -1226,7 +1226,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         i64 = F32S;
                     else
                         i64 = F8S;
-                    emit_sub32c(dyn, ninst, rex, ed, i64, x3, x4, x5, x6);
+                    emit_sub32c(dyn, ninst, rex, ed, i64, x3, x4, x5, x6, x7);
                     WBACK;
                     break;
                 case 6: // XOR
@@ -1711,7 +1711,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 CBZ_NEXT(xRCX);
                 ANDI(x1, xFlags, 1 << F_DF);
                 BNEZ_MARK2(x1);
-                IF_UNALIGNED(ip) {
+                IF_UNALIGNED (ip) {
                     // unaligned path: byte-by-byte only to avoid SIGBUS on CI memory
                     B_MARK_nocond;
                 } else {
@@ -1933,7 +1933,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 CBZ_NEXT(xRCX);
                 ANDI(x1, xFlags, 1 << F_DF);
                 BNEZ_MARK2(x1);
-                IF_UNALIGNED(ip) {
+                IF_UNALIGNED (ip) {
                     // unaligned path: byte-by-byte only to avoid SIGBUS on CI memory
                     B_MARK_nocond;
                 } else {

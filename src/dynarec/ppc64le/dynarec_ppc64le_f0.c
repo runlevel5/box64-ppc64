@@ -205,7 +205,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
         case 0x0F:
             opcode = F8;
-            switch(opcode) {
+            switch (opcode) {
 
                 case 0xAB:
                     nextop = F8;
@@ -222,12 +222,12 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         // Compute bit position and byte offset
                         if (rex.w) {
                             // 64-bit: bit offset = gd (can be > 63, so address adjusted)
-                            SRADI(x3, gd, 6);    // qword offset
-                            SLDI(x3, x3, 3);     // byte offset
-                            ADD(x6, wback, x3);  // adjusted address
-                            ANDI(x5, gd, 63);    // bit within qword
+                            SRADI(x3, gd, 6);   // qword offset
+                            SLDI(x3, x3, 3);    // byte offset
+                            ADD(x6, wback, x3); // adjusted address
+                            ANDI(x5, gd, 63);   // bit within qword
                             LI(x3, 1);
-                            SLD(x3, x3, x5);     // mask
+                            SLD(x3, x3, x5); // mask
                             LWSYNC();
                             MARKLOCK;
                             LDARX(x1, 0, x6);
@@ -236,12 +236,12 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             BNE_MARKLOCK_CR0;
                             LWSYNC();
                         } else {
-                            SRAWI(x3, gd, 5);    // dword offset
-                            SLDI(x3, x3, 2);     // byte offset
-                            ADD(x6, wback, x3);  // adjusted address
-                            ANDI(x5, gd, 31);    // bit within dword
+                            SRAWI(x3, gd, 5);   // dword offset
+                            SLDI(x3, x3, 2);    // byte offset
+                            ADD(x6, wback, x3); // adjusted address
+                            ANDI(x5, gd, 31);   // bit within dword
                             LI(x3, 1);
-                            SLW(x3, x3, x5);     // mask
+                            SLW(x3, x3, x5); // mask
                             LWSYNC();
                             MARKLOCK;
                             LWARX(x1, 0, x6);
@@ -277,19 +277,19 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         BF_EXTRACT(x5, xRAX, 7, 0); // x5 = AL
                         LWSYNC();
                         MARKLOCK;
-                        LBARX(x1, 0, wback);         // x1 = current byte
-                        BF_EXTRACT(x3, x1, 7, 0);    // x3 = current (zero-extended)
+                        LBARX(x1, 0, wback);      // x1 = current byte
+                        BF_EXTRACT(x3, x1, 7, 0); // x3 = current (zero-extended)
                         CMPW(x3, x5);
-                        BNE(3*4);                     // skip store+branch if not equal
-                        STBCXd(gd, 0, wback);         // store Gb
+                        BNE(3 * 4);           // skip store+branch if not equal
+                        STBCXd(gd, 0, wback); // store Gb
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
                         // At this point: x3 = old value, x5 = AL
                         // If equal: [wback] = Gb, ZF=1
                         // If not equal: AL = old value, ZF=0
                         CMPW(x3, x5);
-                        BEQ(2*4);                      // skip if equal (already correct)
-                        BF_INSERT(xRAX, x3, 7, 0);   // AL = old value
+                        BEQ(2 * 4);                // skip if equal (already correct)
+                        BF_INSERT(xRAX, x3, 7, 0); // AL = old value
                         // Emit flags from CMP(old, AL)
                         IFXORNAT (X_ALL | X_PEND) {
                             emit_cmp8(dyn, ninst, x3, x5, x4, x6, x1, x2);
@@ -316,7 +316,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             MARKLOCK;
                             LDARX(x1, 0, wback);
                             CMPD(x1, x5);
-                            BNE(3*4);               // skip store+branch if not equal
+                            BNE(3 * 4); // skip store+branch if not equal
                             STDCXd(gd, 0, wback);
                             BNE_MARKLOCK_CR0;
                             LWSYNC();
@@ -325,15 +325,18 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             MARKLOCK;
                             LWARX(x1, 0, wback);
                             CMPW(x1, x5);
-                            BNE(3*4);               // skip store+branch
+                            BNE(3 * 4); // skip store+branch
                             STWCXd(gd, 0, wback);
                             BNE_MARKLOCK_CR0;
                             LWSYNC();
                         }
                         // x1 = old value, x5 = expected (EAX/RAX)
-                        if (rex.w) CMPD(x1, x5); else CMPW(x1, x5);
-                        BEQ(2*4);                    // skip if equal
-                        MVxw(xRAX, x1);              // RAX/EAX = old value
+                        if (rex.w)
+                            CMPD(x1, x5);
+                        else
+                            CMPW(x1, x5);
+                        BEQ(2 * 4);     // skip if equal
+                        MVxw(xRAX, x1); // RAX/EAX = old value
                         IFXORNAT (X_ALL | X_PEND) {
                             emit_cmp32(dyn, ninst, rex, x1, x5, x3, x4, x6, x7);
                         }
@@ -358,8 +361,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             ADD(x6, wback, x3);
                             ANDI(x5, gd, 63);
                             LI(x3, 1);
-                            SLD(x3, x3, x5);    // mask
-                            NOT(x3, x3);         // inverted mask
+                            SLD(x3, x3, x5); // mask
+                            NOT(x3, x3);     // inverted mask
                             LWSYNC();
                             MARKLOCK;
                             LDARX(x1, 0, x6);
@@ -435,7 +438,10 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                     LWSYNC();
                                 }
                                 IFXORNAT (X_CF) {
-                                    if (rex.w) SRDI(x1, x1, u8); else SRWI(x1, x1, u8);
+                                    if (rex.w)
+                                        SRDI(x1, x1, u8);
+                                    else
+                                        SRWI(x1, x1, u8);
                                     ANDI(x1, x1, 1);
                                     IFX (X_CF) {
                                         BF_INSERT(xFlags, x1, F_CF, F_CF);
@@ -478,7 +484,10 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                     LWSYNC();
                                 }
                                 IFXORNAT (X_CF) {
-                                    if (rex.w) SRDI(x1, x1, u8); else SRWI(x1, x1, u8);
+                                    if (rex.w)
+                                        SRDI(x1, x1, u8);
+                                    else
+                                        SRWI(x1, x1, u8);
                                     ANDI(x1, x1, 1);
                                     IFX (X_CF) {
                                         BF_INSERT(xFlags, x1, F_CF, F_CF);
@@ -593,20 +602,20 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 // PPC64LE (pre-POWER10) lacks 128-bit LL/SC, so use the
                                 // mutex_16b spinlock to protect the critical section, matching
                                 // the interpreter and the LA64/RV64 fallback paths.
-                                RLWINM(xFlags, xFlags, 0, 32-F_ZF, 30-F_ZF); // clear ZF
+                                RLWINM(xFlags, xFlags, 0, 32 - F_ZF, 30 - F_ZF); // clear ZF
                                 // Acquire mutex_16b spinlock
-                                LD(x5, offsetof(x64emu_t, context), xEmu);  // x5 = emu->context
+                                LD(x5, offsetof(x64emu_t, context), xEmu);         // x5 = emu->context
                                 ADDI(x5, x5, offsetof(box64context_t, mutex_16b)); // x5 = &mutex_16b
                                 LI(x4, 1);
                                 MARK2;
-                                LWARX(x6, 0, x5);          // x6 = old mutex value
-                                BNEZ_MARK2(x6);             // spin if already locked
-                                STWCXd(x4, 0, x5);          // try to store 1
-                                BNE_MARK2_CR0;              // retry if reservation lost
-                                ISYNC();                     // acquire barrier
+                                LWARX(x6, 0, x5);  // x6 = old mutex value
+                                BNEZ_MARK2(x6);    // spin if already locked
+                                STWCXd(x4, 0, x5); // try to store 1
+                                BNE_MARK2_CR0;     // retry if reservation lost
+                                ISYNC();           // acquire barrier
                                 // Under lock: plain loads of 128-bit value
-                                LD(x1, 0, wback);           // x1 = low qword
-                                LD(x3, 8, wback);           // x3 = high qword
+                                LD(x1, 0, wback); // x1 = low qword
+                                LD(x3, 8, wback); // x3 = high qword
                                 // Compare with RDX:RAX
                                 BNE_MARK(x1, xRAX);
                                 BNE_MARK(x3, xRDX);
@@ -622,9 +631,9 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 MV(xRDX, x3);
                                 MARK3;
                                 // Release mutex_16b spinlock
-                                LWSYNC();                    // release barrier
+                                LWSYNC(); // release barrier
                                 LI(x6, 0);
-                                STW(x6, 0, x5);             // store 0 to unlock
+                                STW(x6, 0, x5); // store 0 to unlock
                             } else {
                                 INST_NAME("LOCK CMPXCHG8B Gq, Eq");
                                 SETFLAGS(X_ZF, SF_SUBSET, NAT_FLAGS_NOFUSION);
@@ -634,16 +643,16 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 // [wback] is 8 bytes = one doubleword
                                 // x86 low dword = EAX, high dword = EDX
                                 // Combine expected into one 64-bit value
-                                ZEROUP(x5);          // clear upper bits of temp
-                                RLDICL(x5, xRDX, 0, 32);   // x5 = EDX (32-bit)
+                                ZEROUP(x5);              // clear upper bits of temp
+                                RLDICL(x5, xRDX, 0, 32); // x5 = EDX (32-bit)
                                 SLDI(x5, x5, 32);
-                                RLDICL(x3, xRAX, 0, 32);   // x3 = EAX (32-bit)
-                                OR(x5, x5, x3);             // x5 = EDX:EAX combined
+                                RLDICL(x3, xRAX, 0, 32); // x3 = EAX (32-bit)
+                                OR(x5, x5, x3);          // x5 = EDX:EAX combined
                                 // Combine replacement
                                 RLDICL(x6, xRCX, 0, 32);
                                 SLDI(x6, x6, 32);
                                 RLDICL(x3, xRBX, 0, 32);
-                                OR(x6, x6, x3);             // x6 = ECX:EBX combined
+                                OR(x6, x6, x3); // x6 = ECX:EBX combined
                                 LWSYNC();
                                 MARKLOCK;
                                 LDARX(x1, 0, wback);
@@ -654,13 +663,13 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 LWSYNC();
                                 // Match: set ZF=1
                                 ORI(xFlags, xFlags, 1 << F_ZF);
-                                B_MARK3_nocond;              // skip not-equal path
+                                B_MARK3_nocond; // skip not-equal path
                                 // Not equal: load old value into EDX:EAX
                                 MARK;
-                                RLWINM(xFlags, xFlags, 0, 32-F_ZF, 30-F_ZF);
-                                RLDICL(xRAX, x1, 0, 32);           // EAX = low 32 bits
+                                RLWINM(xFlags, xFlags, 0, 32 - F_ZF, 30 - F_ZF);
+                                RLDICL(xRAX, x1, 0, 32); // EAX = low 32 bits
                                 SRDI(x1, x1, 32);
-                                RLDICL(xRDX, x1, 0, 32);           // EDX = high 32 bits
+                                RLDICL(xRDX, x1, 0, 32); // EDX = high 32 bits
                                 MARK3;
                             }
                             break;
@@ -689,7 +698,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 RESTORE_EFLAGS(x5);
                 // x7 = gd + CF (safe: x7 not clobbered by LOCK macros)
                 BF_EXTRACT(x5, xFlags, F_CF, F_CF);
-                ADD(x7, gd, x5);  // x7 = gd + CF
+                ADD(x7, gd, x5); // x7 = gd + CF
                 if (rex.w) {
                     if (!ALIGNED_ATOMICxw) {
                         ANDI(x3, wback, 0b111);
@@ -752,7 +761,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 RESTORE_EFLAGS(x5);
                 // x7 = gd + CF (safe: x7 not clobbered by LOCK macros)
                 BF_EXTRACT(x5, xFlags, F_CF, F_CF);
-                ADD(x7, gd, x5);  // x7 = gd + CF
+                ADD(x7, gd, x5); // x7 = gd + CF
                 if (rex.w) {
                     if (!ALIGNED_ATOMICxw) {
                         ANDI(x3, wback, 0b111);
@@ -795,7 +804,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     MARK3;
                 }
                 IFXORNAT (X_ALL | X_PEND) {
-                    emit_sub32(dyn, ninst, rex, x1, x7, x3, x4, x5);
+                    emit_sub32(dyn, ninst, rex, x1, x7, x3, x4, x5, x6);
                 }
             }
             break;
@@ -926,7 +935,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     MARK3;
                 }
                 IFXORNAT (X_ALL | X_PEND) {
-                    emit_sub32(dyn, ninst, rex, x1, gd, x3, x4, x5);
+                    emit_sub32(dyn, ninst, rex, x1, gd, x3, x4, x5, x6);
                 }
             }
             break;
@@ -1046,8 +1055,11 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK ADD Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode==0x81)?4:1);
-                        if (opcode == 0x81) i64 = F32S; else i64 = F8S;
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode == 0x81) ? 4 : 1);
+                        if (opcode == 0x81)
+                            i64 = F32S;
+                        else
+                            i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
@@ -1108,8 +1120,11 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK OR Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode==0x81)?4:1);
-                        if (opcode == 0x81) i64 = F32S; else i64 = F8S;
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode == 0x81) ? 4 : 1);
+                        if (opcode == 0x81)
+                            i64 = F32S;
+                        else
+                            i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
@@ -1169,12 +1184,15 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK ADC Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode==0x81)?4:1);
-                        if (opcode == 0x81) i64 = F32S; else i64 = F8S;
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode == 0x81) ? 4 : 1);
+                        if (opcode == 0x81)
+                            i64 = F32S;
+                        else
+                            i64 = F8S;
                         RESTORE_EFLAGS(x5);
                         BF_EXTRACT(x5, xFlags, F_CF, F_CF);
                         MOV64x(x7, i64);
-                        ADD(x7, x7, x5);  // x7 = imm + CF
+                        ADD(x7, x7, x5); // x7 = imm + CF
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
                                 ANDI(x3, wback, 0b111);
@@ -1234,12 +1252,15 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK SBB Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode==0x81)?4:1);
-                        if (opcode == 0x81) i64 = F32S; else i64 = F8S;
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode == 0x81) ? 4 : 1);
+                        if (opcode == 0x81)
+                            i64 = F32S;
+                        else
+                            i64 = F8S;
                         RESTORE_EFLAGS(x5);
                         BF_EXTRACT(x5, xFlags, F_CF, F_CF);
                         MOV64x(x7, i64);
-                        ADD(x7, x7, x5);   // x7 = imm + CF
+                        ADD(x7, x7, x5); // x7 = imm + CF
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
                                 ANDI(x3, wback, 0b111);
@@ -1282,7 +1303,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             MARK3;
                         }
                         IFXORNAT (X_ALL | X_PEND) {
-                            emit_sub32(dyn, ninst, rex, x1, x7, x3, x4, x5);
+                            emit_sub32(dyn, ninst, rex, x1, x7, x3, x4, x5, x6);
                         }
                     }
                     break;
@@ -1299,8 +1320,11 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK AND Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode==0x81)?4:1);
-                        if (opcode == 0x81) i64 = F32S; else i64 = F8S;
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode == 0x81) ? 4 : 1);
+                        if (opcode == 0x81)
+                            i64 = F32S;
+                        else
+                            i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
@@ -1360,8 +1384,11 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK SUB Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode==0x81)?4:1);
-                        if (opcode == 0x81) i64 = F32S; else i64 = F8S;
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode == 0x81) ? 4 : 1);
+                        if (opcode == 0x81)
+                            i64 = F32S;
+                        else
+                            i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
@@ -1405,7 +1432,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             MARK3;
                         }
                         IFXORNAT (X_ALL | X_PEND) {
-                            emit_sub32c(dyn, ninst, rex, x1, i64, x3, x4, x5, x6);
+                            emit_sub32c(dyn, ninst, rex, x1, i64, x3, x4, x5, x6, x7);
                         }
                     }
                     break;
@@ -1422,8 +1449,11 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             INST_NAME("LOCK XOR Ed, Ib");
                         }
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
-                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode==0x81)?4:1);
-                        if (opcode == 0x81) i64 = F32S; else i64 = F8S;
+                        addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, (opcode == 0x81) ? 4 : 1);
+                        if (opcode == 0x81)
+                            i64 = F32S;
+                        else
+                            i64 = F8S;
                         MOV64x(x7, i64);
                         if (rex.w) {
                             if (!ALIGNED_ATOMICxw) {
@@ -1530,8 +1560,16 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     LWSYNC();
                     MARKLOCK;
                     LDARX(x5, 0, x6);
-                    if (rex.w) { LD(x1, 0, wback); } else { LWZ(x1, 0, wback); }
-                    if (rex.w) { STD(gd, 0, wback); } else { STW(gd, 0, wback); }
+                    if (rex.w) {
+                        LD(x1, 0, wback);
+                    } else {
+                        LWZ(x1, 0, wback);
+                    }
+                    if (rex.w) {
+                        STD(gd, 0, wback);
+                    } else {
+                        STW(gd, 0, wback);
+                    }
                     STDCXd(x5, 0, x6);
                     BNE_MARKLOCK_CR0;
                     LWSYNC();

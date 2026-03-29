@@ -37,9 +37,9 @@
 // DQ-form section. Without DQ_DISP, geted() would accept displacements like
 // 0x24 (4-byte aligned) as valid inline immediates, but LXV would encode them
 // as 0x20, loading from the wrong address with no error.
-#define NO_DISP     0
-#define DS_DISP     3
-#define DQ_DISP     15
+#define NO_DISP 0
+#define DS_DISP 3
+#define DQ_DISP 15
 
 #define F8      *(uint8_t*)(addr++)
 #define F8S     *(int8_t*)(addr++)
@@ -67,38 +67,63 @@
 // ========================================================================
 // LDxw: load 32 or 64 bits depending on rex.w
 // For 64-bit (LD), offset must be 4-aligned (DS-form); geted() guarantees this when i12=1.
-#define LDxw(Rt, Ra, offset)                                        \
-    if (rex.w) { LD(Rt, offset, Ra); } else { LWZ(Rt, offset, Ra); }
+#define LDxw(Rt, Ra, offset) \
+    if (rex.w) {             \
+        LD(Rt, offset, Ra);  \
+    } else {                 \
+        LWZ(Rt, offset, Ra); \
+    }
 // LDz: load 32 or 64 bits depending on rex.is32bits
-#define LDz(Rt, Ra, offset)                                         \
-    if (rex.is32bits) { LWZ(Rt, offset, Ra); } else { LD(Rt, offset, Ra); }
+#define LDz(Rt, Ra, offset)  \
+    if (rex.is32bits) {      \
+        LWZ(Rt, offset, Ra); \
+    } else {                 \
+        LD(Rt, offset, Ra);  \
+    }
 // SDxw: store 32 or 64 bits depending on rex.w
 // For 64-bit (STD), offset must be 4-aligned (DS-form); geted() guarantees this when i12=1.
-#define SDxw(Rs, Ra, offset)                                        \
-    if (rex.w) { STD(Rs, offset, Ra); } else { STW(Rs, offset, Ra); }
+#define SDxw(Rs, Ra, offset) \
+    if (rex.w) {             \
+        STD(Rs, offset, Ra); \
+    } else {                 \
+        STW(Rs, offset, Ra); \
+    }
 // SDz: store 32 or 64 bits depending on rex.is32bits
-#define SDz(Rs, Ra, offset)                                         \
-    if (rex.is32bits) { STW(Rs, offset, Ra); } else { STD(Rs, offset, Ra); }
+#define SDz(Rs, Ra, offset)  \
+    if (rex.is32bits) {      \
+        STW(Rs, offset, Ra); \
+    } else {                 \
+        STD(Rs, offset, Ra); \
+    }
 
 // SDXxw: indexed store 32 or 64 bits
 #define SDXxw(Rs, Ra, Rb) \
-    if (rex.w) { STDX(Rs, Ra, Rb); } else { STWX(Rs, Ra, Rb); }
+    if (rex.w) {          \
+        STDX(Rs, Ra, Rb); \
+    } else {              \
+        STWX(Rs, Ra, Rb); \
+    }
 
 // ADDxw: add then optionally zero upper 32 bits
 #define ADDxw(Rt, Ra, Rb) \
-    ADD(Rt, Ra, Rb); if (!rex.w) { RLDICL(Rt, Rt, 0, 32); }
+    ADD(Rt, Ra, Rb);      \
+    if (!rex.w) { RLDICL(Rt, Rt, 0, 32); }
 // ADDz: add based on is32bits
 #define ADDz(Rt, Ra, Rb) \
-    ADD(Rt, Ra, Rb); if (rex.is32bits) { RLDICL(Rt, Rt, 0, 32); }
+    ADD(Rt, Ra, Rb);     \
+    if (rex.is32bits) { RLDICL(Rt, Rt, 0, 32); }
 // SUBxw: sub then optionally zero upper 32 bits
 #define SUBxw(Rt, Ra, Rb) \
-    SUB(Rt, Ra, Rb); if (!rex.w) { RLDICL(Rt, Rt, 0, 32); }
+    SUB(Rt, Ra, Rb);      \
+    if (!rex.w) { RLDICL(Rt, Rt, 0, 32); }
 // ADDIxw: addi then optionally zero upper 32 bits
 #define ADDIxw(Rt, Ra, imm) \
-    ADDI(Rt, Ra, imm); if (!rex.w) { RLDICL(Rt, Rt, 0, 32); }
+    ADDI(Rt, Ra, imm);      \
+    if (!rex.w) { RLDICL(Rt, Rt, 0, 32); }
 // ADDIz: addi then optionally zero upper 32 bits (based on is32bits)
 #define ADDIz(Rt, Ra, imm) \
-    ADDI(Rt, Ra, imm); if (rex.is32bits) { RLDICL(Rt, Rt, 0, 32); }
+    ADDI(Rt, Ra, imm);     \
+    if (rex.is32bits) { RLDICL(Rt, Rt, 0, 32); }
 
 // ZEROUP: clear upper 32 bits
 #define ZEROUP(Rd) RLDICL(Rd, Rd, 0, 32)
@@ -110,17 +135,21 @@
 #define SEXT_W(Rd, Rs) EXTSW(Rd, Rs)
 
 // MVxw: move, optionally zero upper 32 bits
-#define MVxw(Rd, Rs) \
-    if (rex.w) { MV(Rd, Rs); } else { RLDICL(Rd, Rs, 0, 32); }
+#define MVxw(Rd, Rs)           \
+    if (rex.w) {               \
+        MV(Rd, Rs);            \
+    } else {                   \
+        RLDICL(Rd, Rs, 0, 32); \
+    }
 
 // MVz: move based on is32bits
-#define MVz(Rd, Rs)              \
-    do {                         \
-        if (rex.is32bits) {      \
-            ZEROUP2(Rd, Rs);     \
-        } else {                 \
-            MV(Rd, Rs);          \
-        }                        \
+#define MVz(Rd, Rs)          \
+    do {                     \
+        if (rex.is32bits) {  \
+            ZEROUP2(Rd, Rs); \
+        } else {             \
+            MV(Rd, Rs);      \
+        }                    \
     } while (0)
 
 // MOV64y: load constant 32 or 64 depending on is32bits/is67
@@ -156,57 +185,57 @@
     } while (0)
 
 // SRAIxw: shift right arithmetic immediate, conditional 32/64 based on rex.w
-#define SRAIxw(Rd, Rs, imm)      \
-    do {                         \
-        if (rex.w) {             \
-            SRADI(Rd, Rs, imm);  \
-        } else {                 \
-            SRAWI(Rd, Rs, imm);  \
-            ZEROUP(Rd);          \
-        }                        \
+#define SRAIxw(Rd, Rs, imm)     \
+    do {                        \
+        if (rex.w) {            \
+            SRADI(Rd, Rs, imm); \
+        } else {                \
+            SRAWI(Rd, Rs, imm); \
+            ZEROUP(Rd);         \
+        }                       \
     } while (0)
 
 // SLLxw: variable shift left, conditional 32/64 based on rex.w
-#define SLLxw(Rd, Rs, Rb)     \
-    do {                      \
-        if (rex.w) {          \
-            SLD(Rd, Rs, Rb);  \
-        } else {              \
-            SLW(Rd, Rs, Rb);  \
-            ZEROUP(Rd);       \
-        }                     \
+#define SLLxw(Rd, Rs, Rb)    \
+    do {                     \
+        if (rex.w) {         \
+            SLD(Rd, Rs, Rb); \
+        } else {             \
+            SLW(Rd, Rs, Rb); \
+            ZEROUP(Rd);      \
+        }                    \
     } while (0)
 
 // SRLxw: variable shift right logical, conditional 32/64 based on rex.w
-#define SRLxw(Rd, Rs, Rb)     \
-    do {                      \
-        if (rex.w) {          \
-            SRD(Rd, Rs, Rb);  \
-        } else {              \
-            SRW(Rd, Rs, Rb);  \
-            ZEROUP(Rd);       \
-        }                     \
+#define SRLxw(Rd, Rs, Rb)    \
+    do {                     \
+        if (rex.w) {         \
+            SRD(Rd, Rs, Rb); \
+        } else {             \
+            SRW(Rd, Rs, Rb); \
+            ZEROUP(Rd);      \
+        }                    \
     } while (0)
 
 // SRAxw: variable shift right arithmetic, conditional 32/64 based on rex.w
-#define SRAxw(Rd, Rs, Rb)      \
-    do {                       \
-        if (rex.w) {           \
-            SRAD(Rd, Rs, Rb);  \
-        } else {               \
-            SRAW(Rd, Rs, Rb);  \
-            ZEROUP(Rd);        \
-        }                      \
+#define SRAxw(Rd, Rs, Rb)     \
+    do {                      \
+        if (rex.w) {          \
+            SRAD(Rd, Rs, Rb); \
+        } else {              \
+            SRAW(Rd, Rs, Rb); \
+            ZEROUP(Rd);       \
+        }                     \
     } while (0)
 
 // SLLIy: shift left, zero-extend if 32-bit mode
 #define SLLIy(Rd, Rs, imm)              \
-    do {                                 \
-        if (rex.is32bits || rex.is67) {  \
-            SLWI(Rd, Rs, imm);           \
-            ZEROUP(Rd);                  \
-        } else                           \
-            SLDI(Rd, Rs, imm);           \
+    do {                                \
+        if (rex.is32bits || rex.is67) { \
+            SLWI(Rd, Rs, imm);          \
+            ZEROUP(Rd);                 \
+        } else                          \
+            SLDI(Rd, Rs, imm);          \
     } while (0)
 
 // SLADDy: add-shift-left (rd = (rj << imm) + rk), conditional 32/64
@@ -214,35 +243,35 @@
 // IMPORTANT: When rd==rk, shift into r0 (scratch) first to avoid clobbering rk.
 // This includes the case rd==rj==rk (e.g. LEA rax,[rax+rax*4] => rax = rax*5).
 // r0 is safe in X-form instructions (SLDI, SLWI, ADD) — only D-form base treats r0 as literal 0.
-#define SLADDy(rd, rj, rk, imm)                \
-    do {                                       \
-        if ((imm) == 0) {                      \
-            if (rex.is32bits || rex.is67) {     \
-                ADD(rd, rj, rk);               \
-                ZEROUP(rd);                    \
-            } else {                           \
-                ADD(rd, rj, rk);               \
-            }                                  \
-        } else if ((rd) == (rk)) {             \
+#define SLADDy(rd, rj, rk, imm)                                   \
+    do {                                                          \
+        if ((imm) == 0) {                                         \
+            if (rex.is32bits || rex.is67) {                       \
+                ADD(rd, rj, rk);                                  \
+                ZEROUP(rd);                                       \
+            } else {                                              \
+                ADD(rd, rj, rk);                                  \
+            }                                                     \
+        } else if ((rd) == (rk)) {                                \
             /* rd==rk: shift rj into r0 to avoid clobbering rk */ \
-            if (rex.is32bits || rex.is67) {     \
-                SLWI(0, rj, imm);              \
-                ADD(rd, 0, rk);                \
-                ZEROUP(rd);                    \
-            } else {                           \
-                SLDI(0, rj, imm);              \
-                ADD(rd, 0, rk);                \
-            }                                  \
-        } else {                               \
-            if (rex.is32bits || rex.is67) {     \
-                SLWI(rd, rj, imm);             \
-                ADD(rd, rd, rk);               \
-                ZEROUP(rd);                    \
-            } else {                           \
-                SLDI(rd, rj, imm);             \
-                ADD(rd, rd, rk);               \
-            }                                  \
-        }                                      \
+            if (rex.is32bits || rex.is67) {                       \
+                SLWI(0, rj, imm);                                 \
+                ADD(rd, 0, rk);                                   \
+                ZEROUP(rd);                                       \
+            } else {                                              \
+                SLDI(0, rj, imm);                                 \
+                ADD(rd, 0, rk);                                   \
+            }                                                     \
+        } else {                                                  \
+            if (rex.is32bits || rex.is67) {                       \
+                SLWI(rd, rj, imm);                                \
+                ADD(rd, rd, rk);                                  \
+                ZEROUP(rd);                                       \
+            } else {                                              \
+                SLDI(rd, rj, imm);                                \
+                ADD(rd, rd, rk);                                  \
+            }                                                     \
+        }                                                         \
     } while (0)
 
 // ADDy: add, conditional 32/64
@@ -257,12 +286,12 @@
 
 // ADDIy: addi, conditional 32/64
 #define ADDIy(rd, rj, imm)              \
-    do {                                 \
-        if (rex.is32bits || rex.is67) {  \
-            ADDI(rd, rj, imm);           \
-            ZEROUP(rd);                  \
-        } else                           \
-            ADDI(rd, rj, imm);           \
+    do {                                \
+        if (rex.is32bits || rex.is67) { \
+            ADDI(rd, rj, imm);          \
+            ZEROUP(rd);                 \
+        } else                          \
+            ADDI(rd, rj, imm);          \
     } while (0)
 
 // ADDxREGy: add, sign-extending rk from 32-bit first if needed (for seg+offset in 32-bit mode)
@@ -270,31 +299,31 @@
 // (like 0xFFFFFFF0) wrap correctly when added to the 64-bit segment base,
 // matching ARM64's ADDx_SXTW and RV64's ADDIW idioms.
 #define ADDxREGy(rd, rj, rk, s1)        \
-    do {                                 \
-        if (rex.is32bits || rex.is67) {  \
-            SEXT_W(s1, rk);              \
-            ADD(rd, rj, s1);             \
-        } else                           \
-            ADD(rd, rj, rk);             \
+    do {                                \
+        if (rex.is32bits || rex.is67) { \
+            SEXT_W(s1, rk);             \
+            ADD(rd, rj, s1);            \
+        } else                          \
+            ADD(rd, rj, rk);            \
     } while (0)
 
 // BF_EXTRACT equivalent: extract bits hi:lo from Rs into Ra
 // RLDICL(Ra, Rs, (64-lo)%64, 64-(hi-lo+1))
 #define BF_EXTRACT(Ra, Rs, hi, lo) \
-    RLDICL(Ra, Rs, (64-(lo))%64, 64-((hi)-(lo)+1))
+    RLDICL(Ra, Rs, (64 - (lo)) % 64, 64 - ((hi) - (lo) + 1))
 
 // BF_INSERT equivalent: insert low bits of Rs into Ra at position hi:lo
 // RLDIMI(Ra, Rs, lo, 63-hi)
 // IMPORTANT: When Rs == xZR (r0), r0 is NOT a zero register on PPC64LE.
 // We load 0 into x4 scratch and use that instead.
-#define BF_INSERT(Ra, Rs, hi, lo)                                     \
-    do {                                                              \
-        if ((Rs) == xZR) {                                            \
-            LI(x4, 0);                                                \
-            RLDIMI(Ra, x4, lo, 63-(hi));                              \
-        } else {                                                      \
-            RLDIMI(Ra, Rs, lo, 63-(hi));                              \
-        }                                                             \
+#define BF_INSERT(Ra, Rs, hi, lo)          \
+    do {                                   \
+        if ((Rs) == xZR) {                 \
+            LI(x4, 0);                     \
+            RLDIMI(Ra, x4, lo, 63 - (hi)); \
+        } else {                           \
+            RLDIMI(Ra, Rs, lo, 63 - (hi)); \
+        }                                  \
     } while (0)
 
 // ========================================================================
@@ -322,52 +351,52 @@
         ed = x1;                                                                                      \
     }
 
-#define GETEDz(D)                                                                               \
-    if (MODREG) {                                                                               \
-        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                               \
-        wback = 0;                                                                              \
-    } else {                                                                                    \
-        SMREAD();                                                                               \
+#define GETEDz(D)                                                                                     \
+    if (MODREG) {                                                                                     \
+        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                     \
+        wback = 0;                                                                                    \
+    } else {                                                                                          \
+        SMREAD();                                                                                     \
         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LDz(x1, wback, fixedaddress);                                                           \
-        ed = x1;                                                                                \
+        LDz(x1, wback, fixedaddress);                                                                 \
+        ed = x1;                                                                                      \
     }
 
 // GETEDH can use hint for wback and ret for ed. wback is 0 if ed is xEAX..xEDI
-#define GETEDH(hint, ret, D)                                                                       \
-    if (MODREG) {                                                                                  \
-        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                  \
-        wback = 0;                                                                                 \
-    } else {                                                                                       \
-        SMREAD();                                                                                  \
+#define GETEDH(hint, ret, D)                                                                             \
+    if (MODREG) {                                                                                        \
+        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                        \
+        wback = 0;                                                                                       \
+    } else {                                                                                             \
+        SMREAD();                                                                                        \
         addr = geted(dyn, addr, ninst, nextop, &wback, hint, ret, &fixedaddress, rex, NULL, DS_DISP, D); \
-        ed = ret;                                                                                  \
-        LDxw(ed, wback, fixedaddress);                                                             \
+        ed = ret;                                                                                        \
+        LDxw(ed, wback, fixedaddress);                                                                   \
     }
-#define GETEDW(hint, ret, D)                                                                       \
-    if (MODREG) {                                                                                  \
-        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                  \
-        MV(ret, ed);                                                                               \
-        wback = 0;                                                                                 \
-    } else {                                                                                       \
-        SMREAD();                                                                                  \
+#define GETEDW(hint, ret, D)                                                                             \
+    if (MODREG) {                                                                                        \
+        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                        \
+        MV(ret, ed);                                                                                     \
+        wback = 0;                                                                                       \
+    } else {                                                                                             \
+        SMREAD();                                                                                        \
         addr = geted(dyn, addr, ninst, nextop, &wback, hint, ret, &fixedaddress, rex, NULL, NO_DISP, D); \
-        ed = ret;                                                                                  \
-        LDxw(ed, wback, fixedaddress);                                                             \
+        ed = ret;                                                                                        \
+        LDxw(ed, wback, fixedaddress);                                                                   \
     }
 // GETEWW will use i for ed, and can use w for wback.
-#define GETEWW(w, i, D)                                                                       \
-    if (MODREG) {                                                                             \
-        wback = TO_NAT((nextop & 7) + (rex.b << 3));                                          \
-        BF_EXTRACT(i, wback, 15, 0);                                                          \
-        ed = i;                                                                               \
-        wb1 = 0;                                                                              \
-    } else {                                                                                  \
-        SMREAD();                                                                             \
+#define GETEWW(w, i, D)                                                                             \
+    if (MODREG) {                                                                                   \
+        wback = TO_NAT((nextop & 7) + (rex.b << 3));                                                \
+        BF_EXTRACT(i, wback, 15, 0);                                                                \
+        ed = i;                                                                                     \
+        wb1 = 0;                                                                                    \
+    } else {                                                                                        \
+        SMREAD();                                                                                   \
         addr = geted(dyn, addr, ninst, nextop, &wback, w, i, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LHZ(i, fixedaddress, wback);                                                          \
-        ed = i;                                                                               \
-        wb1 = 1;                                                                              \
+        LHZ(i, fixedaddress, wback);                                                                \
+        ed = i;                                                                                     \
+        wb1 = 1;                                                                                    \
     }
 // GETEW will use i for ed, and can use r3 for wback.
 #define GETEW(i, D) GETEWW(x3, i, D)
@@ -386,22 +415,22 @@
     }
 
 // GETSED can use r1 for ed, and r2 for wback. ed will be sign extended!
-#define GETSED(D)                                                                               \
-    if (MODREG) {                                                                               \
-        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                               \
-        wback = 0;                                                                              \
-        if (!rex.w) {                                                                           \
-            EXTSW(x1, ed);                                                                      \
-            ed = x1;                                                                            \
-        }                                                                                       \
-    } else {                                                                                    \
-        SMREAD();                                                                               \
+#define GETSED(D)                                                                                     \
+    if (MODREG) {                                                                                     \
+        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                     \
+        wback = 0;                                                                                    \
+        if (!rex.w) {                                                                                 \
+            EXTSW(x1, ed);                                                                            \
+            ed = x1;                                                                                  \
+        }                                                                                             \
+    } else {                                                                                          \
+        SMREAD();                                                                                     \
         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, NULL, DS_DISP, D); \
-        if (rex.w)                                                                              \
-            LD(x1, fixedaddress, wback);                                                        \
-        else                                                                                    \
-            LWA(x1, fixedaddress, wback);                                                       \
-        ed = x1;                                                                                \
+        if (rex.w)                                                                                    \
+            LD(x1, fixedaddress, wback);                                                              \
+        else                                                                                          \
+            LWA(x1, fixedaddress, wback);                                                             \
+        ed = x1;                                                                                      \
     }
 
 // FAKEED like GETED, but doesn't get anything
@@ -416,14 +445,14 @@
 // GETGW extract x64 register in gd, that is i, Signed extended
 #define GETSGW(i)                                       \
     gd = TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3)); \
-    EXTSH(i, gd);                                        \
+    EXTSH(i, gd);                                       \
     gd = i;
 
 // Write back ed in wback (if wback not 0)
-#define WBACK                              \
-    if (wback) {                           \
-        SDxw(ed, wback, fixedaddress);     \
-        SMWRITE();                         \
+#define WBACK                          \
+    if (wback) {                       \
+        SDxw(ed, wback, fixedaddress); \
+        SMWRITE();                     \
     }
 
 #define WBACKO(O)                \
@@ -438,26 +467,26 @@
     }
 
 // GETSEW will use i for ed, and can use r3 for wback. This is the Signed version
-#define GETSEW(i, D)                                                                           \
-    if (MODREG) {                                                                              \
-        wback = TO_NAT((nextop & 7) + (rex.b << 3));                                           \
-        EXTSH(i, wback);                                                                       \
-        ed = i;                                                                                \
-        wb1 = 0;                                                                               \
-    } else {                                                                                   \
-        SMREAD();                                                                              \
+#define GETSEW(i, D)                                                                                 \
+    if (MODREG) {                                                                                    \
+        wback = TO_NAT((nextop & 7) + (rex.b << 3));                                                 \
+        EXTSH(i, wback);                                                                             \
+        ed = i;                                                                                      \
+        wb1 = 0;                                                                                     \
+    } else {                                                                                         \
+        SMREAD();                                                                                    \
         addr = geted(dyn, addr, ninst, nextop, &wback, x3, i, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LHA(i, fixedaddress, wback);                                                           \
-        ed = i;                                                                                \
-        wb1 = 1;                                                                               \
+        LHA(i, fixedaddress, wback);                                                                 \
+        ed = i;                                                                                      \
+        wb1 = 1;                                                                                     \
     }
 // Write w back to original register / memory (w needs to be 16bits only!)
-#define EWBACKW(w)                    \
-    if (wb1) {                        \
-        STH(w, fixedaddress, wback);  \
-        SMWRITE();                    \
-    } else {                          \
-        BF_INSERT(wback, w, 15, 0);   \
+#define EWBACKW(w)                   \
+    if (wb1) {                       \
+        STH(w, fixedaddress, wback); \
+        SMWRITE();                   \
+    } else {                         \
+        BF_INSERT(wback, w, 15, 0);  \
     }
 // Write ed back to original register / memory
 #define EWBACK EWBACKW(ed)
@@ -466,73 +495,73 @@
 #define GWBACK BF_INSERT((TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3))), gd, 15, 0);
 
 // GETEB will use i for ed, and can use r3 for wback.
-#define GETEB(i, D)                                                                             \
-    if (MODREG) {                                                                               \
-        if (rex.rex) {                                                                          \
-            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                        \
-            wb2 = 0;                                                                            \
-        } else {                                                                                \
-            wback = (nextop & 7);                                                               \
-            wb2 = (wback >> 2) * 8;                                                             \
-            wback = TO_NAT((wback & 3));                                                        \
-        }                                                                                       \
-        BF_EXTRACT(i, wback, wb2 + 7, wb2);                                                     \
-        wb1 = 0;                                                                                \
-        ed = i;                                                                                 \
-    } else {                                                                                    \
-        SMREAD();                                                                               \
+#define GETEB(i, D)                                                                                   \
+    if (MODREG) {                                                                                     \
+        if (rex.rex) {                                                                                \
+            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                              \
+            wb2 = 0;                                                                                  \
+        } else {                                                                                      \
+            wback = (nextop & 7);                                                                     \
+            wb2 = (wback >> 2) * 8;                                                                   \
+            wback = TO_NAT((wback & 3));                                                              \
+        }                                                                                             \
+        BF_EXTRACT(i, wback, wb2 + 7, wb2);                                                           \
+        wb1 = 0;                                                                                      \
+        ed = i;                                                                                       \
+    } else {                                                                                          \
+        SMREAD();                                                                                     \
         addr = geted(dyn, addr, ninst, nextop, &wback, x3, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LBZ(i, fixedaddress, wback);                                                            \
-        wb1 = 1;                                                                                \
-        ed = i;                                                                                 \
+        LBZ(i, fixedaddress, wback);                                                                  \
+        wb1 = 1;                                                                                      \
+        ed = i;                                                                                       \
     }
 // GETSEB sign extend EB, will use i for ed, and can use r3 for wback.
-#define GETSEB(i, D)                                                                            \
-    if (MODREG) {                                                                               \
-        if (rex.rex) {                                                                          \
-            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                        \
-            wb2 = 0;                                                                            \
-        } else {                                                                                \
-            wback = (nextop & 7);                                                               \
-            wb2 = (wback >> 2) * 8;                                                             \
-            wback = TO_NAT(wback & 3);                                                          \
-        }                                                                                       \
-        if (wb2) {                                                                              \
-            SRDI(i, wback, wb2);                                                                \
-            EXTSB(i, i);                                                                        \
-        } else {                                                                                \
-            EXTSB(i, wback);                                                                    \
-        }                                                                                       \
-        wb1 = 0;                                                                                \
-        ed = i;                                                                                 \
-    } else {                                                                                    \
-        SMREAD();                                                                               \
+#define GETSEB(i, D)                                                                                  \
+    if (MODREG) {                                                                                     \
+        if (rex.rex) {                                                                                \
+            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                              \
+            wb2 = 0;                                                                                  \
+        } else {                                                                                      \
+            wback = (nextop & 7);                                                                     \
+            wb2 = (wback >> 2) * 8;                                                                   \
+            wback = TO_NAT(wback & 3);                                                                \
+        }                                                                                             \
+        if (wb2) {                                                                                    \
+            SRDI(i, wback, wb2);                                                                      \
+            EXTSB(i, i);                                                                              \
+        } else {                                                                                      \
+            EXTSB(i, wback);                                                                          \
+        }                                                                                             \
+        wb1 = 0;                                                                                      \
+        ed = i;                                                                                       \
+    } else {                                                                                          \
+        SMREAD();                                                                                     \
         addr = geted(dyn, addr, ninst, nextop, &wback, x3, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LBZ(i, fixedaddress, wback);                                                            \
-        EXTSB(i, i);                                                                            \
-        wb1 = 1;                                                                                \
-        ed = i;                                                                                 \
+        LBZ(i, fixedaddress, wback);                                                                  \
+        EXTSB(i, i);                                                                                  \
+        wb1 = 1;                                                                                      \
+        ed = i;                                                                                       \
     }
 // GETEB32 will use i for ed, and can use r3 for wback.
-#define GETEB32(i, D)                                                                             \
-    if (MODREG) {                                                                                 \
-        if (rex.rex) {                                                                            \
-            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                          \
-            wb2 = 0;                                                                              \
-        } else {                                                                                  \
-            wback = (nextop & 7);                                                                 \
-            wb2 = (wback >> 2) * 8;                                                               \
-            wback = TO_NAT(wback & 3);                                                            \
-        }                                                                                         \
-        BF_EXTRACT(i, wback, wb2 + 7, wb2);                                                       \
-        wb1 = 0;                                                                                  \
-        ed = i;                                                                                   \
-    } else {                                                                                      \
-        SMREAD();                                                                                 \
+#define GETEB32(i, D)                                                                                   \
+    if (MODREG) {                                                                                       \
+        if (rex.rex) {                                                                                  \
+            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                                \
+            wb2 = 0;                                                                                    \
+        } else {                                                                                        \
+            wback = (nextop & 7);                                                                       \
+            wb2 = (wback >> 2) * 8;                                                                     \
+            wback = TO_NAT(wback & 3);                                                                  \
+        }                                                                                               \
+        BF_EXTRACT(i, wback, wb2 + 7, wb2);                                                             \
+        wb1 = 0;                                                                                        \
+        ed = i;                                                                                         \
+    } else {                                                                                            \
+        SMREAD();                                                                                       \
         addr = geted32(dyn, addr, ninst, nextop, &wback, x3, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LBZ(i, fixedaddress, wback);                                                              \
-        wb1 = 1;                                                                                  \
-        ed = i;                                                                                   \
+        LBZ(i, fixedaddress, wback);                                                                    \
+        wb1 = 1;                                                                                        \
+        ed = i;                                                                                         \
     }
 
 // GETGB will use i for gd
@@ -579,65 +608,65 @@
     a = sse_get_reg_empty(dyn, ninst, x1, gd)
 
 // Get EX as a quad, (x1 is used)
-#define GETEX(a, w, D)                                                                       \
-    if (MODREG) {                                                                            \
-        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                     \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
+#define GETEX(a, w, D)                                                                             \
+    if (MODREG) {                                                                                  \
+        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                           \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x3, x2, &fixedaddress, rex, NULL, DQ_DISP, D); \
-        a = fpu_get_scratch(dyn);                                                            \
-        LXV(VSXREG(a), fixedaddress, ed);                                                    \
+        a = fpu_get_scratch(dyn);                                                                  \
+        LXV(VSXREG(a), fixedaddress, ed);                                                          \
     }
 
 // Put Back EX if it was a memory and not an emm register
-#define PUTEX(a)                            \
-    if (!MODREG) {                          \
-        STXV(VSXREG(a), fixedaddress, ed);  \
-        SMWRITE2();                         \
+#define PUTEX(a)                           \
+    if (!MODREG) {                         \
+        STXV(VSXREG(a), fixedaddress, ed); \
+        SMWRITE2();                        \
     }
 
 // Get Ex as a double, not a quad (warning, x1 get used, x2 might too)
-#define GETEXSD(a, w, D)                                                                     \
-    if (MODREG) {                                                                            \
-        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                     \
-    } else {                                                                                 \
-        SMREAD(); /* TODO */                                                                 \
-        a = fpu_get_scratch(dyn);                                                            \
+#define GETEXSD(a, w, D)                                                                           \
+    if (MODREG) {                                                                                  \
+        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                           \
+    } else {                                                                                       \
+        SMREAD(); /* TODO */                                                                       \
+        a = fpu_get_scratch(dyn);                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LD(x4, fixedaddress, ed);                                                            \
-        MTVSRD(VSXREG(a), x4);                                                              \
+        LD(x4, fixedaddress, ed);                                                                  \
+        MTVSRD(VSXREG(a), x4);                                                                     \
     }
 
 // Get Ex as 64bits, not a quad (warning, x1 get used, x2 might too)
 #define GETEX64(a, w, D) GETEXSD(a, w, D)
 
 // Get Ex as a single, not a quad (warning, x1 get used)
-#define GETEXSS(a, w, D)                                                                     \
-    if (MODREG) {                                                                            \
-        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                     \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
-        a = fpu_get_scratch(dyn);                                                            \
+#define GETEXSS(a, w, D)                                                                           \
+    if (MODREG) {                                                                                  \
+        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                           \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
+        a = fpu_get_scratch(dyn);                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LWZ(x4, fixedaddress, ed);                                                           \
-        SLDI(x4, x4, 32);                                                                   \
-        MTVSRD(VSXREG(a), x4);                                                              \
-        XSCVSPDPN(VSXREG(a), VSXREG(a));                                                    \
+        LWZ(x4, fixedaddress, ed);                                                                 \
+        SLDI(x4, x4, 32);                                                                          \
+        MTVSRD(VSXREG(a), x4);                                                                     \
+        XSCVSPDPN(VSXREG(a), VSXREG(a));                                                           \
     }
 
 // Get Ex as 32bits, not a quad (warning, x1 get used)
 #define GETEX32(a, w, D) GETEXSS(a, w, D)
 
 // Get Ex as 16bits, not a quad (warning, x1 get used)
-#define GETEX16(a, w, D)                                                                     \
-    if (MODREG) {                                                                            \
-        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                     \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
-        a = fpu_get_scratch(dyn);                                                            \
+#define GETEX16(a, w, D)                                                                           \
+    if (MODREG) {                                                                                  \
+        a = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w);                           \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
+        a = fpu_get_scratch(dyn);                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LHZ(x2, fixedaddress, ed);                                                           \
-        /* TODO: move x2 to FPU reg a */                                                     \
+        LHZ(x2, fixedaddress, ed);                                                                 \
+        /* TODO: move x2 to FPU reg a */                                                           \
     }
 
 // Get GM, might use x1, x2 and x3
@@ -646,23 +675,23 @@
     a = mmx_get_reg(dyn, ninst, x1, x2, x3, gd)
 
 // Get EM, might use x1, x2 and x3
-#define GETEM(a, D)                                                                          \
-    if (MODREG) {                                                                            \
-        a = mmx_get_reg(dyn, ninst, x1, x2, x3, (nextop & 7));                               \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
+#define GETEM(a, D)                                                                                \
+    if (MODREG) {                                                                                  \
+        a = mmx_get_reg(dyn, ninst, x1, x2, x3, (nextop & 7));                                     \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        a = fpu_get_scratch(dyn);                                                            \
-        LD(x3, fixedaddress, ed);                                                            \
-        MTVSRDD(VSXREG(a), xZR, x3);                                                        \
+        a = fpu_get_scratch(dyn);                                                                  \
+        LD(x3, fixedaddress, ed);                                                                  \
+        MTVSRDD(VSXREG(a), xZR, x3);                                                               \
     }
 
 // Put Back Em if it was a memory and not an emm register
-#define PUTEM(a)                                 \
-    if (!MODREG) {                               \
-        MFVSRLD(x3, VSXREG(a));                  \
-        STD(x3, fixedaddress, ed);               \
-        SMWRITE2();                              \
+#define PUTEM(a)                   \
+    if (!MODREG) {                 \
+        MFVSRLD(x3, VSXREG(a));    \
+        STD(x3, fixedaddress, ed); \
+        SMWRITE2();                \
     }
 
 // Write gb (gd) back to original register / memory, using s1 as scratch
@@ -718,83 +747,83 @@
     a = avx_get_reg_empty(dyn, ninst, x1, gd, VMX_AVX_WIDTH_256)
 
 // Get EY as a quad, (x1 is used)
-#define GETEYx(a, w, D)                                                                      \
-    if (MODREG) {                                                                            \
-        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_128);  \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
+#define GETEYx(a, w, D)                                                                            \
+    if (MODREG) {                                                                                  \
+        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_128);        \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_DISP, D); \
-        a = fpu_get_scratch(dyn);                                                            \
-        LXV(VSXREG(a), fixedaddress, ed);                                                    \
+        a = fpu_get_scratch(dyn);                                                                  \
+        LXV(VSXREG(a), fixedaddress, ed);                                                          \
     }
 
-#define GETEYy(a, w, D)                                                                      \
-    if (MODREG) {                                                                            \
-        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_256);  \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
+#define GETEYy(a, w, D)                                                                            \
+    if (MODREG) {                                                                                  \
+        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_256);        \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_DISP, D); \
-        a = fpu_get_scratch(dyn);                                                            \
-        /* lower 128 bits; upper 128 must be loaded inline by each 256-bit opcode */            \
-        LXV(VSXREG(a), fixedaddress, ed);                                                    \
+        a = fpu_get_scratch(dyn);                                                                  \
+        /* lower 128 bits; upper 128 must be loaded inline by each 256-bit opcode */               \
+        LXV(VSXREG(a), fixedaddress, ed);                                                          \
     }
 
-#define GETEYx_empty(a, D)                                                                     \
-    if (MODREG) {                                                                              \
-        a = avx_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), VMX_AVX_WIDTH_128); \
-    } else {                                                                                   \
-        SMREAD();                                                                              \
-        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_DISP, D);   \
-        a = fpu_get_scratch(dyn);                                                              \
+#define GETEYx_empty(a, D)                                                                         \
+    if (MODREG) {                                                                                  \
+        a = avx_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), VMX_AVX_WIDTH_128);     \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
+        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_DISP, D); \
+        a = fpu_get_scratch(dyn);                                                                  \
     }
 
-#define GETEYy_empty(a, D)                                                                     \
-    if (MODREG) {                                                                              \
-        a = avx_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), VMX_AVX_WIDTH_256); \
-    } else {                                                                                   \
-        SMREAD();                                                                              \
-        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_DISP, D);   \
-        a = fpu_get_scratch(dyn);                                                              \
+#define GETEYy_empty(a, D)                                                                         \
+    if (MODREG) {                                                                                  \
+        a = avx_get_reg_empty(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), VMX_AVX_WIDTH_256);     \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
+        addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DQ_DISP, D); \
+        a = fpu_get_scratch(dyn);                                                                  \
     }
 
 // Get EY as 32bits, (x1 is used)
-#define GETEYSS(a, w, D)                                                                     \
-    if (MODREG) {                                                                            \
-        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_128);  \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
+#define GETEYSS(a, w, D)                                                                           \
+    if (MODREG) {                                                                                  \
+        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_128);        \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DS_DISP, D); \
-        a = fpu_get_scratch(dyn);                                                            \
-        LWZ(x4, fixedaddress, ed);                                                           \
-        SLDI(x4, x4, 32);                                                                   \
-        MTVSRD(VSXREG(a), x4);                                                              \
-        XSCVSPDPN(VSXREG(a), VSXREG(a));                                                    \
+        a = fpu_get_scratch(dyn);                                                                  \
+        LWZ(x4, fixedaddress, ed);                                                                 \
+        SLDI(x4, x4, 32);                                                                          \
+        MTVSRD(VSXREG(a), x4);                                                                     \
+        XSCVSPDPN(VSXREG(a), VSXREG(a));                                                           \
     }
 
-#define PUTEYSS(a)                                     \
-    if (!MODREG) {                                     \
-        MFVSRLD(x4, VSXREG(a));                        \
-        STW(x4, fixedaddress, ed);                     \
-        SMWRITE2();                                    \
+#define PUTEYSS(a)                 \
+    if (!MODREG) {                 \
+        MFVSRLD(x4, VSXREG(a));    \
+        STW(x4, fixedaddress, ed); \
+        SMWRITE2();                \
     }
 
 // Get EY as 64bits, (x1 is used)
-#define GETEYSD(a, w, D)                                                                     \
-    if (MODREG) {                                                                            \
-        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_128);  \
-    } else {                                                                                 \
-        SMREAD();                                                                            \
+#define GETEYSD(a, w, D)                                                                           \
+    if (MODREG) {                                                                                  \
+        a = avx_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), w, VMX_AVX_WIDTH_128);        \
+    } else {                                                                                       \
+        SMREAD();                                                                                  \
         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x1, &fixedaddress, rex, NULL, DS_DISP, D); \
-        a = fpu_get_scratch(dyn);                                                            \
-        LD(x4, fixedaddress, ed);                                                            \
-        MTVSRD(VSXREG(a), x4);                                                              \
+        a = fpu_get_scratch(dyn);                                                                  \
+        LD(x4, fixedaddress, ed);                                                                  \
+        MTVSRD(VSXREG(a), x4);                                                                     \
     }
 
-#define PUTEYSD(a)                                     \
-    if (!MODREG) {                                     \
-        MFVSRLD(x4, VSXREG(a));                        \
-        STD(x4, fixedaddress, ed);                     \
-        SMWRITE2();                                    \
+#define PUTEYSD(a)                 \
+    if (!MODREG) {                 \
+        MFVSRLD(x4, VSXREG(a));    \
+        STD(x4, fixedaddress, ed); \
+        SMWRITE2();                \
     }
 
 #define GETGYxy(a, w) \
@@ -840,17 +869,17 @@
     }
 
 // Put Back EY if it was a memory and not an emm register
-#define PUTEYy(a)                   \
-    if (!MODREG) {                  \
-        /* lower 128 bits; upper 128 must be stored inline by each 256-bit opcode */   \
-        STXV(VSXREG(a), fixedaddress, ed);  \
-        SMWRITE2();                 \
+#define PUTEYy(a)                                                                    \
+    if (!MODREG) {                                                                   \
+        /* lower 128 bits; upper 128 must be stored inline by each 256-bit opcode */ \
+        STXV(VSXREG(a), fixedaddress, ed);                                           \
+        SMWRITE2();                                                                  \
     }
 
-#define PUTEYx(a)                   \
-    if (!MODREG) {                  \
-        STXV(VSXREG(a), fixedaddress, ed);  \
-        SMWRITE2();                 \
+#define PUTEYx(a)                          \
+    if (!MODREG) {                         \
+        STXV(VSXREG(a), fixedaddress, ed); \
+        SMWRITE2();                        \
     }
 
 #define PUTEYxy(a) \
@@ -933,61 +962,61 @@
         addr = fakeed(dyn, addr, ninst, nextop);  \
     }
 // Write back ed in wback (if wback not 0)
-#define WBACK                              \
-    if (wback) {                           \
-        SDxw(ed, wback, fixedaddress);     \
-        SMWRITE();                         \
+#define WBACK                          \
+    if (wback) {                       \
+        SDxw(ed, wback, fixedaddress); \
+        SMWRITE();                     \
     }
 
 // GETEB will use i for ed, and can use r3 for wback.
-#define GETEB(i, D)                                                                             \
-    if (MODREG) {                                                                               \
-        if (rex.rex) {                                                                          \
-            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                        \
-            wb2 = 0;                                                                            \
-        } else {                                                                                \
-            wback = (nextop & 7);                                                               \
-            wb2 = (wback >> 2) * 8;                                                             \
-            wback = TO_NAT((wback & 3));                                                        \
-        }                                                                                       \
-        BF_EXTRACT(i, wback, wb2 + 7, wb2);                                                     \
-        wb1 = 0;                                                                                \
-        ed = i;                                                                                 \
-    } else {                                                                                    \
-        SMREAD();                                                                               \
+#define GETEB(i, D)                                                                                   \
+    if (MODREG) {                                                                                     \
+        if (rex.rex) {                                                                                \
+            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                              \
+            wb2 = 0;                                                                                  \
+        } else {                                                                                      \
+            wback = (nextop & 7);                                                                     \
+            wb2 = (wback >> 2) * 8;                                                                   \
+            wback = TO_NAT((wback & 3));                                                              \
+        }                                                                                             \
+        BF_EXTRACT(i, wback, wb2 + 7, wb2);                                                           \
+        wb1 = 0;                                                                                      \
+        ed = i;                                                                                       \
+    } else {                                                                                          \
+        SMREAD();                                                                                     \
         addr = geted(dyn, addr, ninst, nextop, &wback, x3, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LBZ(i, fixedaddress, wback);                                                            \
-        wb1 = 1;                                                                                \
-        ed = i;                                                                                 \
+        LBZ(i, fixedaddress, wback);                                                                  \
+        wb1 = 1;                                                                                      \
+        ed = i;                                                                                       \
     }
 
 
 // GETSEB sign extend EB, will use i for ed, and can use r3 for wback.
-#define GETSEB(i, D)                                                                            \
-    if (MODREG) {                                                                               \
-        if (rex.rex) {                                                                          \
-            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                        \
-            wb2 = 0;                                                                            \
-        } else {                                                                                \
-            wback = (nextop & 7);                                                               \
-            wb2 = (wback >> 2) * 8;                                                             \
-            wback = TO_NAT(wback & 3);                                                          \
-        }                                                                                       \
-        if (wb2) {                                                                              \
-            SRDI(i, wback, wb2);                                                                \
-            EXTSB(i, i);                                                                        \
-        } else {                                                                                \
-            EXTSB(i, wback);                                                                    \
-        }                                                                                       \
-        wb1 = 0;                                                                                \
-        ed = i;                                                                                 \
-    } else {                                                                                    \
-        SMREAD();                                                                               \
+#define GETSEB(i, D)                                                                                  \
+    if (MODREG) {                                                                                     \
+        if (rex.rex) {                                                                                \
+            wback = TO_NAT((nextop & 7) + (rex.b << 3));                                              \
+            wb2 = 0;                                                                                  \
+        } else {                                                                                      \
+            wback = (nextop & 7);                                                                     \
+            wb2 = (wback >> 2) * 8;                                                                   \
+            wback = TO_NAT(wback & 3);                                                                \
+        }                                                                                             \
+        if (wb2) {                                                                                    \
+            SRDI(i, wback, wb2);                                                                      \
+            EXTSB(i, i);                                                                              \
+        } else {                                                                                      \
+            EXTSB(i, wback);                                                                          \
+        }                                                                                             \
+        wb1 = 0;                                                                                      \
+        ed = i;                                                                                       \
+    } else {                                                                                          \
+        SMREAD();                                                                                     \
         addr = geted(dyn, addr, ninst, nextop, &wback, x3, x2, &fixedaddress, rex, NULL, DS_DISP, D); \
-        LBZ(i, fixedaddress, wback);                                                            \
-        EXTSB(i, i);                                                                            \
-        wb1 = 1;                                                                                \
-        ed = i;                                                                                 \
+        LBZ(i, fixedaddress, wback);                                                                  \
+        EXTSB(i, i);                                                                                  \
+        wb1 = 1;                                                                                      \
+        ed = i;                                                                                       \
     }
 // GETGB will use i for gd
 #define GETGB(i)                                             \
@@ -1083,15 +1112,15 @@
 
 // Bxx_gen: compare two registers, then branch
 // Uses CMPD_ZR to handle xZR (r0) safely — see note at CMPD_ZR definition
-#define Bxx_gen(COND, M, reg1, reg2)             \
-    CMPD_ZR(reg1, reg2);                         \
-    j64 = GET##M - dyn->native_size;             \
+#define Bxx_gen(COND, M, reg1, reg2) \
+    CMPD_ZR(reg1, reg2);             \
+    j64 = GET##M - dyn->native_size; \
     B##COND(j64)
 
 // BxxZ_gen: compare register with zero, then branch
-#define BxxZ_gen(COND, M, reg)                   \
-    CMPDI(reg, 0);                               \
-    j64 = GET##M - dyn->native_size;             \
+#define BxxZ_gen(COND, M, reg)       \
+    CMPDI(reg, 0);                   \
+    j64 = GET##M - dyn->native_size; \
     B##COND(j64)
 
 // Branch to MARK if reg1!=reg2 (use j64)
@@ -1142,9 +1171,9 @@
 #define BLT_MARK(reg1, reg2) Bxx_gen(LT, MARK, reg1, reg2)
 // Branch to MARK if reg1<reg2 (unsigned) (use j64)
 // PPC64LE: use CMPLD_ZR for unsigned, then BLT
-#define BLTU_MARK(reg1, reg2)                    \
-    CMPLD_ZR(reg1, reg2);                        \
-    j64 = GETMARK - dyn->native_size;            \
+#define BLTU_MARK(reg1, reg2)         \
+    CMPLD_ZR(reg1, reg2);             \
+    j64 = GETMARK - dyn->native_size; \
     BLT(j64)
 // Branch to MARK if reg1>=reg2 (use j64)
 #define BGE_MARK(reg1, reg2) Bxx_gen(GE, MARK, reg1, reg2)
@@ -1154,29 +1183,29 @@
 #define BGE_MARK3(reg1, reg2) Bxx_gen(GE, MARK3, reg1, reg2)
 
 // Branch to MARKLOCK on CR0.EQ=0 (for STWCX./STDCX. retry loops)
-#define BNE_MARKLOCK_CR0                         \
-    j64 = GETMARKLOCK - dyn->native_size;        \
+#define BNE_MARKLOCK_CR0                  \
+    j64 = GETMARKLOCK - dyn->native_size; \
     BNE(j64)
 // Branch to MARKLOCK2 on CR0.EQ=0 (for STWCX./STDCX. retry loops)
-#define BNE_MARKLOCK2_CR0                        \
-    j64 = GETMARKLOCK2 - dyn->native_size;       \
+#define BNE_MARKLOCK2_CR0                  \
+    j64 = GETMARKLOCK2 - dyn->native_size; \
     BNE(j64)
 // Branch to MARK2 on CR0.EQ=0 (for STWCX./STDCX. retry loops)
-#define BNE_MARK2_CR0                            \
-    j64 = GETMARK2 - dyn->native_size;           \
+#define BNE_MARK2_CR0                  \
+    j64 = GETMARK2 - dyn->native_size; \
     BNE(j64)
 
 // Branch to MARK unconditional (use j64)
-#define B_MARK_nocond                            \
-    j64 = GETMARK - dyn->native_size;            \
+#define B_MARK_nocond                 \
+    j64 = GETMARK - dyn->native_size; \
     B(j64)
 // Branch to MARK2 unconditional (use j64)
-#define B_MARK2_nocond                           \
-    j64 = GETMARK2 - dyn->native_size;           \
+#define B_MARK2_nocond                 \
+    j64 = GETMARK2 - dyn->native_size; \
     B(j64)
 // Branch to MARK3 unconditional (use j64)
-#define B_MARK3_nocond                           \
-    j64 = GETMARK3 - dyn->native_size;           \
+#define B_MARK3_nocond                 \
+    j64 = GETMARK3 - dyn->native_size; \
     B(j64)
 
 // Branch to NEXT if reg1==0 (use j64)
@@ -1222,11 +1251,11 @@
 #define IFXN(A, B)  if ((dyn->insts[ninst].x64.gen_flags & (A) && !(dyn->insts[ninst].x64.gen_flags & (B))))
 
 #ifndef NATIVE_RESTORE_X87PC
-#define NATIVE_RESTORE_X87PC()                     \
-    if (dyn->need_x87check) {                      \
-        LD(x87pc, offsetof(x64emu_t, cw), xEmu);  \
-        SRDI(x87pc, x87pc, 8);                     \
-        ANDId(x87pc, x87pc, 0b11);                 \
+#define NATIVE_RESTORE_X87PC()                   \
+    if (dyn->need_x87check) {                    \
+        LD(x87pc, offsetof(x64emu_t, cw), xEmu); \
+        SRDI(x87pc, x87pc, 8);                   \
+        ANDId(x87pc, x87pc, 0b11);               \
     }
 #endif
 #ifndef X87_CHECK_PRECISION
@@ -1269,9 +1298,9 @@
 
 // PPC64LE has no xZR register that can be stored — must use LI+STW for zero stores
 // Use x4 (r6) as scratch instead of x1 (r3) since x1 often holds live 'ed' values
-#define FORCE_DFNONE()               \
-    do {                             \
-        LI(x4, 0);                   \
+#define FORCE_DFNONE()                         \
+    do {                                       \
+        LI(x4, 0);                             \
         STW(x4, offsetof(x64emu_t, df), xEmu); \
     } while (0)
 
@@ -1290,12 +1319,12 @@
         }                                 \
     } while (0)
 
-#define SET_DF(S, N)                           \
-    if ((N) != d_none) {                       \
-        MOV32w(S, (N));                        \
-        STW(S, offsetof(x64emu_t, df), xEmu);  \
-        dyn->f = status_set;                   \
-    } else                                     \
+#define SET_DF(S, N)                          \
+    if ((N) != d_none) {                      \
+        MOV32w(S, (N));                       \
+        STW(S, offsetof(x64emu_t, df), xEmu); \
+        dyn->f = status_set;                  \
+    } else                                    \
         SET_DFNONE()
 
 #define CLEAR_FLAGS_(s)                                                                                       \
@@ -1314,7 +1343,7 @@
         AND(op1_, op1_, op2);                                         \
         OR(scratch2, scratch2, op1_);                                 \
         IFX (X_AF) {                                                  \
-            ANDId(scratch1, scratch2, 8);                              \
+            ANDId(scratch1, scratch2, 8);                             \
             SLDI(scratch1, scratch1, F_AF - 3);                       \
             OR(xFlags, xFlags, scratch1);                             \
         }                                                             \
@@ -1370,13 +1399,13 @@
 // READFLAGS / SETFLAGS / GRABFLAGS
 // ========================================================================
 #ifndef READFLAGS
-#define READFLAGS(A)                                \
-    if ((A) != X_PEND                               \
-        && (dyn->f == status_unk)) {                \
-        TABLE64C(x6, const_updateflags_ppc64le);    \
-        MTCTR(x6);                                  \
-        BCTRL();                                    \
-        dyn->f = status_none;                       \
+#define READFLAGS(A)                             \
+    if ((A) != X_PEND                            \
+        && (dyn->f == status_unk)) {             \
+        TABLE64C(x6, const_updateflags_ppc64le); \
+        MTCTR(x6);                               \
+        BCTRL();                                 \
+        dyn->f = status_none;                    \
     }
 #endif
 
@@ -1475,15 +1504,15 @@
 #endif
 
 #ifndef CALLRET_LOOP
-#define CALLRET_LOOP()  NOP()
+#define CALLRET_LOOP() NOP()
 #endif
 
 #ifndef IF_UNALIGNED
-#define IF_UNALIGNED(A) if(dyn->insts[ninst].unaligned)
+#define IF_UNALIGNED(A) if (dyn->insts[ninst].unaligned)
 #endif
 
 #ifndef IF_ALIGNED
-#define IF_ALIGNED(A) if(!dyn->insts[ninst].unaligned)
+#define IF_ALIGNED(A) if (!dyn->insts[ninst].unaligned)
 #endif
 
 #ifndef TABLE64
@@ -1513,31 +1542,31 @@
 #else
 
 // PPC64LE ADDI has 16-bit signed immediate (±32768), wider than LA64's 12-bit
-#define GETIP_(A, scratch)                                         \
-    do {                                                           \
+#define GETIP_(A, scratch)                                        \
+    do {                                                          \
         ssize_t _delta_ip = (ssize_t)(A) - (ssize_t)dyn->last_ip; \
-        if (!dyn->last_ip) {                                       \
-            if (dyn->need_reloc) {                                 \
-                TABLE64(xRIP, (A));                                \
-            } else {                                               \
-                MOV64x(xRIP, (A));                                 \
-            }                                                      \
-        } else if (_delta_ip == 0) {                               \
-        } else if (_delta_ip >= -32768 && _delta_ip < 32768) {     \
-            ADDI(xRIP, xRIP, _delta_ip);                           \
-        } else if (_delta_ip < 0 && _delta_ip >= -0xffffffffL) {   \
-            MOV32w(scratch, -_delta_ip);                           \
-            SUB(xRIP, xRIP, scratch);                              \
-        } else if (_delta_ip > 0 && _delta_ip <= 0xffffffffL) {    \
-            MOV32w(scratch, _delta_ip);                            \
-            ADD(xRIP, xRIP, scratch);                              \
-        } else {                                                   \
-            if (dyn->need_reloc) {                                 \
-                TABLE64(xRIP, (A));                                \
-            } else {                                               \
-                MOV64x(xRIP, (A));                                 \
-            }                                                      \
-        }                                                          \
+        if (!dyn->last_ip) {                                      \
+            if (dyn->need_reloc) {                                \
+                TABLE64(xRIP, (A));                               \
+            } else {                                              \
+                MOV64x(xRIP, (A));                                \
+            }                                                     \
+        } else if (_delta_ip == 0) {                              \
+        } else if (_delta_ip >= -32768 && _delta_ip < 32768) {    \
+            ADDI(xRIP, xRIP, _delta_ip);                          \
+        } else if (_delta_ip < 0 && _delta_ip >= -0xffffffffL) {  \
+            MOV32w(scratch, -_delta_ip);                          \
+            SUB(xRIP, xRIP, scratch);                             \
+        } else if (_delta_ip > 0 && _delta_ip <= 0xffffffffL) {   \
+            MOV32w(scratch, _delta_ip);                           \
+            ADD(xRIP, xRIP, scratch);                             \
+        } else {                                                  \
+            if (dyn->need_reloc) {                                \
+                TABLE64(xRIP, (A));                               \
+            } else {                                              \
+                MOV64x(xRIP, (A));                                \
+            }                                                     \
+        }                                                         \
     } while (0)
 #define GETIP(A, scratch) \
     GETIP_(A, scratch);   \
@@ -1769,9 +1798,9 @@
 #define fpu_reflectcache    STEPNAME(fpu_reflectcache)
 #define fpu_unreflectcache  STEPNAME(fpu_unreflectcache)
 
-#define CacheTransform     STEPNAME(CacheTransform)
-#define ppc64le_move64     STEPNAME(ppc64le_move64)
-#define ppc64le_move32     STEPNAME(ppc64le_move32)
+#define CacheTransform STEPNAME(CacheTransform)
+#define ppc64le_move64 STEPNAME(ppc64le_move64)
+#define ppc64le_move32 STEPNAME(ppc64le_move32)
 
 // ========================================================================
 // Function declarations
@@ -1880,11 +1909,11 @@ void emit_shrd16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int 
 void emit_shrd16c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, uint32_t c, int s3, int s4, int s5);
 void emit_shrd32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s5, int s3, int s4, int s6);
 void emit_shrd32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, uint32_t c, int s3, int s4);
-void emit_sub16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5);
-void emit_sub32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5);
-void emit_sub32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s2, int s3, int s4, int s5);
-void emit_sub8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5);
-void emit_sub8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, int s3, int s4, int s5);
+void emit_sub16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5, int s6);
+void emit_sub32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5, int s6);
+void emit_sub32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s2, int s3, int s4, int s5, int s6);
+void emit_sub8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5, int s6);
+void emit_sub8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, int s3, int s4, int s5, int s6);
 void emit_test16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5);
 void emit_test32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5);
 void emit_test32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s3, int s4, int s5);
@@ -2086,83 +2115,83 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // ANDId always sets CR0, so we can branch on it directly.
 // But for the GO() macro pattern, we keep using BxxZ_gen / CBNZ etc.
 // as the GO() caller provides the branch decision.
-#define GOCOND(B, T1, T2)                                                                                    \
-    case B + 0x0:                                                                                            \
-        INST_NAME(T1 "O " T2);                                                                               \
-        GO(ANDId(tmp1, xFlags, 1 << F_OF), EQZ, NEZ, _, _, X_OF, X64_JMP_JO);                                \
-        break;                                                                                               \
-    case B + 0x1:                                                                                            \
-        INST_NAME(T1 "NO " T2);                                                                              \
-        GO(ANDId(tmp1, xFlags, 1 << F_OF), NEZ, EQZ, _, _, X_OF, X64_JMP_JNO);                               \
-        break;                                                                                               \
-    case B + 0x2:                                                                                            \
-        INST_NAME(T1 "C " T2);                                                                               \
-        GO(ANDId(tmp1, xFlags, 1 << F_CF), EQZ, NEZ, GEU, LTU, X_CF, X64_JMP_JC);                            \
-        break;                                                                                               \
-    case B + 0x3:                                                                                            \
-        INST_NAME(T1 "NC " T2);                                                                              \
-        GO(ANDId(tmp1, xFlags, 1 << F_CF), NEZ, EQZ, LTU, GEU, X_CF, X64_JMP_JNC);                           \
-        break;                                                                                               \
-    case B + 0x4:                                                                                            \
-        INST_NAME(T1 "Z " T2);                                                                               \
-        GO(ANDId(tmp1, xFlags, 1 << F_ZF), EQZ, NEZ, NE, EQ, X_ZF, X64_JMP_JZ);                              \
-        break;                                                                                               \
-    case B + 0x5:                                                                                            \
-        INST_NAME(T1 "NZ " T2);                                                                              \
-        GO(ANDId(tmp1, xFlags, 1 << F_ZF), NEZ, EQZ, EQ, NE, X_ZF, X64_JMP_JNZ);                             \
-        break;                                                                                               \
-    case B + 0x6:                                                                                            \
-        INST_NAME(T1 "BE " T2);                                                                              \
-        GO(ANDId(tmp1, xFlags, (1 << F_CF) | (1 << F_ZF)), EQZ, NEZ, GTU, LEU, X_CF | X_ZF, X64_JMP_JBE);    \
-        break;                                                                                               \
-    case B + 0x7:                                                                                            \
-        INST_NAME(T1 "NBE " T2);                                                                             \
-        GO(ANDId(tmp1, xFlags, (1 << F_CF) | (1 << F_ZF)), NEZ, EQZ, LEU, GTU, X_CF | X_ZF, X64_JMP_JNBE);   \
-        break;                                                                                               \
-    case B + 0x8:                                                                                            \
-        INST_NAME(T1 "S " T2);                                                                               \
-        GO(ANDId(tmp1, xFlags, 1 << F_SF), EQZ, NEZ, GE, LT, X_SF, X64_JMP_JS);                              \
-        break;                                                                                               \
-    case B + 0x9:                                                                                            \
-        INST_NAME(T1 "NS " T2);                                                                              \
-        GO(ANDId(tmp1, xFlags, 1 << F_SF), NEZ, EQZ, LT, GE, X_SF, X64_JMP_JNS);                             \
-        break;                                                                                               \
-    case B + 0xA:                                                                                            \
-        INST_NAME(T1 "P " T2);                                                                               \
-        GO(ANDId(tmp1, xFlags, 1 << F_PF), EQZ, NEZ, _, _, X_PF, X64_JMP_JP);                                \
-        break;                                                                                               \
-    case B + 0xB:                                                                                            \
-        INST_NAME(T1 "NP " T2);                                                                              \
-        GO(ANDId(tmp1, xFlags, 1 << F_PF), NEZ, EQZ, _, _, X_PF, X64_JMP_JNP);                               \
-        break;                                                                                               \
-    case B + 0xC:                                                                                            \
-        INST_NAME(T1 "L " T2);                                                                               \
-        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                  \
-            XOR(tmp1, tmp1, xFlags);                                                                         \
-            ANDId(tmp1, tmp1, 1 << F_SF), EQZ, NEZ, GE, LT, X_SF | X_OF, X64_JMP_JL);                        \
-        break;                                                                                               \
-    case B + 0xD:                                                                                            \
-        INST_NAME(T1 "GE " T2);                                                                              \
-        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                  \
-            XOR(tmp1, tmp1, xFlags);                                                                         \
-            ANDId(tmp1, tmp1, 1 << F_SF), NEZ, EQZ, LT, GE, X_SF | X_OF, X64_JMP_JGE);                       \
-        break;                                                                                               \
-    case B + 0xE:                                                                                            \
-        INST_NAME(T1 "LE " T2);                                                                              \
-        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                  \
-            XOR(tmp1, tmp1, xFlags);                                                                         \
-            ANDId(tmp1, tmp1, 1 << F_SF);                                                                    \
-            ANDId(tmp3, xFlags, 1 << F_ZF);                                                                  \
-            OR(tmp1, tmp1, tmp3);                                                                            \
+#define GOCOND(B, T1, T2)                                                                                     \
+    case B + 0x0:                                                                                             \
+        INST_NAME(T1 "O " T2);                                                                                \
+        GO(ANDId(tmp1, xFlags, 1 << F_OF), EQZ, NEZ, _, _, X_OF, X64_JMP_JO);                                 \
+        break;                                                                                                \
+    case B + 0x1:                                                                                             \
+        INST_NAME(T1 "NO " T2);                                                                               \
+        GO(ANDId(tmp1, xFlags, 1 << F_OF), NEZ, EQZ, _, _, X_OF, X64_JMP_JNO);                                \
+        break;                                                                                                \
+    case B + 0x2:                                                                                             \
+        INST_NAME(T1 "C " T2);                                                                                \
+        GO(ANDId(tmp1, xFlags, 1 << F_CF), EQZ, NEZ, GEU, LTU, X_CF, X64_JMP_JC);                             \
+        break;                                                                                                \
+    case B + 0x3:                                                                                             \
+        INST_NAME(T1 "NC " T2);                                                                               \
+        GO(ANDId(tmp1, xFlags, 1 << F_CF), NEZ, EQZ, LTU, GEU, X_CF, X64_JMP_JNC);                            \
+        break;                                                                                                \
+    case B + 0x4:                                                                                             \
+        INST_NAME(T1 "Z " T2);                                                                                \
+        GO(ANDId(tmp1, xFlags, 1 << F_ZF), EQZ, NEZ, NE, EQ, X_ZF, X64_JMP_JZ);                               \
+        break;                                                                                                \
+    case B + 0x5:                                                                                             \
+        INST_NAME(T1 "NZ " T2);                                                                               \
+        GO(ANDId(tmp1, xFlags, 1 << F_ZF), NEZ, EQZ, EQ, NE, X_ZF, X64_JMP_JNZ);                              \
+        break;                                                                                                \
+    case B + 0x6:                                                                                             \
+        INST_NAME(T1 "BE " T2);                                                                               \
+        GO(ANDId(tmp1, xFlags, (1 << F_CF) | (1 << F_ZF)), EQZ, NEZ, GTU, LEU, X_CF | X_ZF, X64_JMP_JBE);     \
+        break;                                                                                                \
+    case B + 0x7:                                                                                             \
+        INST_NAME(T1 "NBE " T2);                                                                              \
+        GO(ANDId(tmp1, xFlags, (1 << F_CF) | (1 << F_ZF)), NEZ, EQZ, LEU, GTU, X_CF | X_ZF, X64_JMP_JNBE);    \
+        break;                                                                                                \
+    case B + 0x8:                                                                                             \
+        INST_NAME(T1 "S " T2);                                                                                \
+        GO(ANDId(tmp1, xFlags, 1 << F_SF), EQZ, NEZ, GE, LT, X_SF, X64_JMP_JS);                               \
+        break;                                                                                                \
+    case B + 0x9:                                                                                             \
+        INST_NAME(T1 "NS " T2);                                                                               \
+        GO(ANDId(tmp1, xFlags, 1 << F_SF), NEZ, EQZ, LT, GE, X_SF, X64_JMP_JNS);                              \
+        break;                                                                                                \
+    case B + 0xA:                                                                                             \
+        INST_NAME(T1 "P " T2);                                                                                \
+        GO(ANDId(tmp1, xFlags, 1 << F_PF), EQZ, NEZ, _, _, X_PF, X64_JMP_JP);                                 \
+        break;                                                                                                \
+    case B + 0xB:                                                                                             \
+        INST_NAME(T1 "NP " T2);                                                                               \
+        GO(ANDId(tmp1, xFlags, 1 << F_PF), NEZ, EQZ, _, _, X_PF, X64_JMP_JNP);                                \
+        break;                                                                                                \
+    case B + 0xC:                                                                                             \
+        INST_NAME(T1 "L " T2);                                                                                \
+        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                   \
+            XOR(tmp1, tmp1, xFlags);                                                                          \
+            ANDId(tmp1, tmp1, 1 << F_SF), EQZ, NEZ, GE, LT, X_SF | X_OF, X64_JMP_JL);                         \
+        break;                                                                                                \
+    case B + 0xD:                                                                                             \
+        INST_NAME(T1 "GE " T2);                                                                               \
+        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                   \
+            XOR(tmp1, tmp1, xFlags);                                                                          \
+            ANDId(tmp1, tmp1, 1 << F_SF), NEZ, EQZ, LT, GE, X_SF | X_OF, X64_JMP_JGE);                        \
+        break;                                                                                                \
+    case B + 0xE:                                                                                             \
+        INST_NAME(T1 "LE " T2);                                                                               \
+        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                   \
+            XOR(tmp1, tmp1, xFlags);                                                                          \
+            ANDId(tmp1, tmp1, 1 << F_SF);                                                                     \
+            ANDId(tmp3, xFlags, 1 << F_ZF);                                                                   \
+            OR(tmp1, tmp1, tmp3);                                                                             \
             ANDId(tmp1, tmp1, (1 << F_SF) | (1 << F_ZF)), EQZ, NEZ, GT, LE, X_SF | X_OF | X_ZF, X64_JMP_JLE); \
-        break;                                                                                               \
-    case B + 0xF:                                                                                            \
-        INST_NAME(T1 "G " T2);                                                                               \
-        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                  \
-            XOR(tmp1, tmp1, xFlags);                                                                         \
-            ANDId(tmp1, tmp1, 1 << F_SF);                                                                    \
-            ANDId(tmp3, xFlags, 1 << F_ZF);                                                                  \
-            OR(tmp1, tmp1, tmp3);                                                                            \
+        break;                                                                                                \
+    case B + 0xF:                                                                                             \
+        INST_NAME(T1 "G " T2);                                                                                \
+        GO(SRDI(tmp1, xFlags, F_OF - F_SF);                                                                   \
+            XOR(tmp1, tmp1, xFlags);                                                                          \
+            ANDId(tmp1, tmp1, 1 << F_SF);                                                                     \
+            ANDId(tmp3, xFlags, 1 << F_ZF);                                                                   \
+            OR(tmp1, tmp1, tmp3);                                                                             \
             ANDId(tmp1, tmp1, (1 << F_SF) | (1 << F_ZF)), NEZ, EQZ, LE, GT, X_SF | X_OF | X_ZF, X64_JMP_JG);  \
         break
 
@@ -2180,8 +2209,20 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // IMPORTANT: xZR == r0 == 0, but r0 is NOT a hardware zero register on PPC64LE.
 // When r2 == xZR (0), we must use CMPDI/CMPLDI with immediate 0 instead of
 // CMPD/CMPLD against r0 (which may hold a non-zero value).
-#define CMPD_ZR(r1, r2)   do { if ((r2) == xZR) CMPDI(r1, 0); else CMPD(r1, r2); } while(0)
-#define CMPLD_ZR(r1, r2)  do { if ((r2) == xZR) CMPLDI(r1, 0); else CMPLD(r1, r2); } while(0)
+#define CMPD_ZR(r1, r2)   \
+    do {                  \
+        if ((r2) == xZR)  \
+            CMPDI(r1, 0); \
+        else              \
+            CMPD(r1, r2); \
+    } while (0)
+#define CMPLD_ZR(r1, r2)   \
+    do {                   \
+        if ((r2) == xZR)   \
+            CMPLDI(r1, 0); \
+        else               \
+            CMPLD(r1, r2); \
+    } while (0)
 
 // --- 3-arg B##COND##_safe: always 3 instructions ---
 // Pattern: CMPD/CMPLD + near(Bcond+NOP) or far(inv_Bcond+B)
@@ -2189,206 +2230,206 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Bcond sits at +4, so near Bcond offset = imm-4.
 // For far case: inv_Bcond skips over B (offset=8), B sits at +8 so B offset = imm-8.
 
-#define BEQ_safe(r1, r2, imm)                       \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BEQ((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BNE(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BEQ_safe(r1, r2, imm)                    \
+    do {                                         \
+        CMPD_ZR(r1, r2);                         \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BEQ((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BNE(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BNE_safe(r1, r2, imm)                        \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BNE((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BEQ(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BNE_safe(r1, r2, imm)                    \
+    do {                                         \
+        CMPD_ZR(r1, r2);                         \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BNE((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BEQ(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BLT_safe(r1, r2, imm)                        \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BLT((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BGE(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BLT_safe(r1, r2, imm)                    \
+    do {                                         \
+        CMPD_ZR(r1, r2);                         \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BLT((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BGE(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BGE_safe(r1, r2, imm)                        \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BGE((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BLT(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BGE_safe(r1, r2, imm)                    \
+    do {                                         \
+        CMPD_ZR(r1, r2);                         \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BGE((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BLT(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BGT_safe(r1, r2, imm)                        \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BGT((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BLE(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BGT_safe(r1, r2, imm)                    \
+    do {                                         \
+        CMPD_ZR(r1, r2);                         \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BGT((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BLE(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BLE_safe(r1, r2, imm)                        \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BLE((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BGT(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BLE_safe(r1, r2, imm)                    \
+    do {                                         \
+        CMPD_ZR(r1, r2);                         \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BLE((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BGT(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
 // Unsigned variants use CMPLD
-#define BLTU_safe(r1, r2, imm)                       \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BLT((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BGE(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BLTU_safe(r1, r2, imm)                   \
+    do {                                         \
+        CMPLD_ZR(r1, r2);                        \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BLT((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BGE(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BGEU_safe(r1, r2, imm)                       \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BGE((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BLT(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BGEU_safe(r1, r2, imm)                   \
+    do {                                         \
+        CMPLD_ZR(r1, r2);                        \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BGE((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BLT(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BGTU_safe(r1, r2, imm)                       \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BGT((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BLE(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BGTU_safe(r1, r2, imm)                   \
+    do {                                         \
+        CMPLD_ZR(r1, r2);                        \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BGT((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BLE(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
-#define BLEU_safe(r1, r2, imm)                       \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
-            BLE((imm) - 4);                          \
-            NOP();                                   \
-        } else {                                     \
-            BGT(2 * 4);                              \
-            B((imm) - 8);                            \
-        }                                            \
+#define BLEU_safe(r1, r2, imm)                   \
+    do {                                         \
+        CMPLD_ZR(r1, r2);                        \
+        if ((imm) > -0x7000 && (imm) < 0x7000) { \
+            BLE((imm) - 4);                      \
+            NOP();                               \
+        } else {                                 \
+            BGT(2 * 4);                          \
+            B((imm) - 8);                        \
+        }                                        \
     } while (0)
 
 // B__safe: unconditional placeholder (dead code, never reached in fusion path)
 // Must be 3 instructions to match _safe sizing.
-#define B__safe(a, b, imm)                           \
-    do {                                             \
-        NOP();                                       \
-        NOP();                                       \
-        NOP();                                       \
+#define B__safe(a, b, imm) \
+    do {                   \
+        NOP();             \
+        NOP();             \
+        NOP();             \
     } while (0)
 
 // --- 3-arg B##COND##_: always 2 instructions (matches BxxZ_gen sizing) ---
 // Pattern: CMPD/CMPLD + Bcond
 // imm is offset from start of this macro to target. Bcond at +4, so offset = imm-4.
 
-#define BEQ_(r1, r2, imm)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        BEQ((imm) - 4);                              \
+#define BEQ_(r1, r2, imm) \
+    do {                  \
+        CMPD_ZR(r1, r2);  \
+        BEQ((imm) - 4);   \
     } while (0)
 
-#define BNE_(r1, r2, imm)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        BNE((imm) - 4);                              \
+#define BNE_(r1, r2, imm) \
+    do {                  \
+        CMPD_ZR(r1, r2);  \
+        BNE((imm) - 4);   \
     } while (0)
 
-#define BLT_(r1, r2, imm)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        BLT((imm) - 4);                              \
+#define BLT_(r1, r2, imm) \
+    do {                  \
+        CMPD_ZR(r1, r2);  \
+        BLT((imm) - 4);   \
     } while (0)
 
-#define BGE_(r1, r2, imm)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        BGE((imm) - 4);                              \
+#define BGE_(r1, r2, imm) \
+    do {                  \
+        CMPD_ZR(r1, r2);  \
+        BGE((imm) - 4);   \
     } while (0)
 
-#define BGT_(r1, r2, imm)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        BGT((imm) - 4);                              \
+#define BGT_(r1, r2, imm) \
+    do {                  \
+        CMPD_ZR(r1, r2);  \
+        BGT((imm) - 4);   \
     } while (0)
 
-#define BLE_(r1, r2, imm)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        BLE((imm) - 4);                              \
+#define BLE_(r1, r2, imm) \
+    do {                  \
+        CMPD_ZR(r1, r2);  \
+        BLE((imm) - 4);   \
     } while (0)
 
 // Unsigned variants use CMPLD
-#define BLTU_(r1, r2, imm)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        BLT((imm) - 4);                              \
+#define BLTU_(r1, r2, imm) \
+    do {                   \
+        CMPLD_ZR(r1, r2);  \
+        BLT((imm) - 4);    \
     } while (0)
 
-#define BGEU_(r1, r2, imm)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        BGE((imm) - 4);                              \
+#define BGEU_(r1, r2, imm) \
+    do {                   \
+        CMPLD_ZR(r1, r2);  \
+        BGE((imm) - 4);    \
     } while (0)
 
-#define BGTU_(r1, r2, imm)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        BGT((imm) - 4);                              \
+#define BGTU_(r1, r2, imm) \
+    do {                   \
+        CMPLD_ZR(r1, r2);  \
+        BGT((imm) - 4);    \
     } while (0)
 
-#define BLEU_(r1, r2, imm)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        BLE((imm) - 4);                              \
+#define BLEU_(r1, r2, imm) \
+    do {                   \
+        CMPLD_ZR(r1, r2);  \
+        BLE((imm) - 4);    \
     } while (0)
 
 // B__: unconditional placeholder (dead code). Must be 2 instructions.
-#define B__(a, b, imm)                               \
-    do {                                             \
-        NOP();                                       \
-        NOP();                                       \
+#define B__(a, b, imm) \
+    do {               \
+        NOP();         \
+        NOP();         \
     } while (0)
 
 // --- 3-arg S##COND##_: NATIVESET (set rd = (op1 COND op2) ? 1 : 0) ---
@@ -2398,87 +2439,87 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 //   LT: shift=1, GT: shift=2, EQ: shift=3
 
 // Direct conditions: extract the relevant bit
-#define SLT_(dst, r1, r2)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 1, 31, 31);                 \
+#define SLT_(dst, r1, r2)            \
+    do {                             \
+        CMPD_ZR(r1, r2);             \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 1, 31, 31); \
     } while (0)
 
-#define SGT_(dst, r1, r2)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 2, 31, 31);                 \
+#define SGT_(dst, r1, r2)            \
+    do {                             \
+        CMPD_ZR(r1, r2);             \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 2, 31, 31); \
     } while (0)
 
-#define SEQ_(dst, r1, r2)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 3, 31, 31);                 \
+#define SEQ_(dst, r1, r2)            \
+    do {                             \
+        CMPD_ZR(r1, r2);             \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 3, 31, 31); \
     } while (0)
 
 // Inverted conditions: extract the opposite bit and XOR with 1
-#define SGE_(dst, r1, r2)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 1, 31, 31);                 \
-        XORI(dst, dst, 1);                           \
+#define SGE_(dst, r1, r2)            \
+    do {                             \
+        CMPD_ZR(r1, r2);             \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 1, 31, 31); \
+        XORI(dst, dst, 1);           \
     } while (0)
 
-#define SLE_(dst, r1, r2)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 2, 31, 31);                 \
-        XORI(dst, dst, 1);                           \
+#define SLE_(dst, r1, r2)            \
+    do {                             \
+        CMPD_ZR(r1, r2);             \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 2, 31, 31); \
+        XORI(dst, dst, 1);           \
     } while (0)
 
-#define SNE_(dst, r1, r2)                            \
-    do {                                             \
-        CMPD_ZR(r1, r2);                             \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 3, 31, 31);                 \
-        XORI(dst, dst, 1);                           \
+#define SNE_(dst, r1, r2)            \
+    do {                             \
+        CMPD_ZR(r1, r2);             \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 3, 31, 31); \
+        XORI(dst, dst, 1);           \
     } while (0)
 
 // Unsigned variants use CMPLD
-#define SLTU_(dst, r1, r2)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 1, 31, 31);                 \
+#define SLTU_(dst, r1, r2)           \
+    do {                             \
+        CMPLD_ZR(r1, r2);            \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 1, 31, 31); \
     } while (0)
 
-#define SGTU_(dst, r1, r2)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 2, 31, 31);                 \
+#define SGTU_(dst, r1, r2)           \
+    do {                             \
+        CMPLD_ZR(r1, r2);            \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 2, 31, 31); \
     } while (0)
 
-#define SGEU_(dst, r1, r2)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 1, 31, 31);                 \
-        XORI(dst, dst, 1);                           \
+#define SGEU_(dst, r1, r2)           \
+    do {                             \
+        CMPLD_ZR(r1, r2);            \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 1, 31, 31); \
+        XORI(dst, dst, 1);           \
     } while (0)
 
-#define SLEU_(dst, r1, r2)                           \
-    do {                                             \
-        CMPLD_ZR(r1, r2);                            \
-        MFCR(dst);                                   \
-        RLWINM(dst, dst, 2, 31, 31);                 \
-        XORI(dst, dst, 1);                           \
+#define SLEU_(dst, r1, r2)           \
+    do {                             \
+        CMPLD_ZR(r1, r2);            \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 2, 31, 31); \
+        XORI(dst, dst, 1);           \
     } while (0)
 
 // S__: unconditional placeholder (dead code). Sets dst=1 unconditionally.
-#define S__(dst, r1, r2)                             \
-    do {                                             \
-        LI(dst, 1);                                  \
+#define S__(dst, r1, r2) \
+    do {                 \
+        LI(dst, 1);      \
     } while (0)
 
 // --- 4-arg MV##COND##_: NATIVEMV (dst = (op1 COND op2) ? src : dst) ---
@@ -2488,69 +2529,69 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // (x86 regs map to GPR14-29, scratch GPR3-8,10-11), so this is safe.
 
 // Signed conditions: use CMPD_ZR (handles xZR==r0 safely)
-#define MVEQ_(dst, src, r1, r2)                       \
-    do {                                               \
-        CMPD_ZR(r1, r2);                               \
-        ISEL(dst, src, dst, BI(CR0, CR_EQ));            \
+#define MVEQ_(dst, src, r1, r2)              \
+    do {                                     \
+        CMPD_ZR(r1, r2);                     \
+        ISEL(dst, src, dst, BI(CR0, CR_EQ)); \
     } while (0)
 
-#define MVNE_(dst, src, r1, r2)                       \
-    do {                                               \
-        CMPD_ZR(r1, r2);                               \
-        ISEL(dst, dst, src, BI(CR0, CR_EQ));            \
+#define MVNE_(dst, src, r1, r2)              \
+    do {                                     \
+        CMPD_ZR(r1, r2);                     \
+        ISEL(dst, dst, src, BI(CR0, CR_EQ)); \
     } while (0)
 
-#define MVLT_(dst, src, r1, r2)                       \
-    do {                                               \
-        CMPD_ZR(r1, r2);                               \
-        ISEL(dst, src, dst, BI(CR0, CR_LT));            \
+#define MVLT_(dst, src, r1, r2)              \
+    do {                                     \
+        CMPD_ZR(r1, r2);                     \
+        ISEL(dst, src, dst, BI(CR0, CR_LT)); \
     } while (0)
 
-#define MVGE_(dst, src, r1, r2)                       \
-    do {                                               \
-        CMPD_ZR(r1, r2);                               \
-        ISEL(dst, dst, src, BI(CR0, CR_LT));            \
+#define MVGE_(dst, src, r1, r2)              \
+    do {                                     \
+        CMPD_ZR(r1, r2);                     \
+        ISEL(dst, dst, src, BI(CR0, CR_LT)); \
     } while (0)
 
-#define MVGT_(dst, src, r1, r2)                       \
-    do {                                               \
-        CMPD_ZR(r1, r2);                               \
-        ISEL(dst, src, dst, BI(CR0, CR_GT));            \
+#define MVGT_(dst, src, r1, r2)              \
+    do {                                     \
+        CMPD_ZR(r1, r2);                     \
+        ISEL(dst, src, dst, BI(CR0, CR_GT)); \
     } while (0)
 
-#define MVLE_(dst, src, r1, r2)                       \
-    do {                                               \
-        CMPD_ZR(r1, r2);                               \
-        ISEL(dst, dst, src, BI(CR0, CR_GT));            \
+#define MVLE_(dst, src, r1, r2)              \
+    do {                                     \
+        CMPD_ZR(r1, r2);                     \
+        ISEL(dst, dst, src, BI(CR0, CR_GT)); \
     } while (0)
 
 // Unsigned conditions: use CMPLD_ZR
-#define MVLTU_(dst, src, r1, r2)                      \
-    do {                                               \
-        CMPLD_ZR(r1, r2);                              \
-        ISEL(dst, src, dst, BI(CR0, CR_LT));            \
+#define MVLTU_(dst, src, r1, r2)             \
+    do {                                     \
+        CMPLD_ZR(r1, r2);                    \
+        ISEL(dst, src, dst, BI(CR0, CR_LT)); \
     } while (0)
 
-#define MVGEU_(dst, src, r1, r2)                      \
-    do {                                               \
-        CMPLD_ZR(r1, r2);                              \
-        ISEL(dst, dst, src, BI(CR0, CR_LT));            \
+#define MVGEU_(dst, src, r1, r2)             \
+    do {                                     \
+        CMPLD_ZR(r1, r2);                    \
+        ISEL(dst, dst, src, BI(CR0, CR_LT)); \
     } while (0)
 
-#define MVGTU_(dst, src, r1, r2)                      \
-    do {                                               \
-        CMPLD_ZR(r1, r2);                              \
-        ISEL(dst, src, dst, BI(CR0, CR_GT));            \
+#define MVGTU_(dst, src, r1, r2)             \
+    do {                                     \
+        CMPLD_ZR(r1, r2);                    \
+        ISEL(dst, src, dst, BI(CR0, CR_GT)); \
     } while (0)
 
-#define MVLEU_(dst, src, r1, r2)                      \
-    do {                                               \
-        CMPLD_ZR(r1, r2);                              \
-        ISEL(dst, dst, src, BI(CR0, CR_GT));            \
+#define MVLEU_(dst, src, r1, r2)             \
+    do {                                     \
+        CMPLD_ZR(r1, r2);                    \
+        ISEL(dst, dst, src, BI(CR0, CR_GT)); \
     } while (0)
 
 // Unconditional: always move (dead code path, kept for macro expansion)
-#define MV__(dst, src, r1, r2)   MR(dst, src)
+#define MV__(dst, src, r1, r2) MR(dst, src)
 
 #define NATIVEJUMP_safe(COND, val) \
     B##COND##_safe(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
@@ -2568,23 +2609,23 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // NOTEST / SKIPTEST / GOTEST
 // ========================================================================
 // PPC64LE: cannot store xZR, must use LI(scratch, 0) + STW
-#define NOTEST(s1)                                          \
-    if (BOX64ENV(dynarec_test)) {                           \
-        LI(s1, 0);                                         \
-        STW(s1, offsetof(x64emu_t, test.test), xEmu);      \
-        STW(s1, offsetof(x64emu_t, test.clean), xEmu);     \
+#define NOTEST(s1)                                     \
+    if (BOX64ENV(dynarec_test)) {                      \
+        LI(s1, 0);                                     \
+        STW(s1, offsetof(x64emu_t, test.test), xEmu);  \
+        STW(s1, offsetof(x64emu_t, test.clean), xEmu); \
     }
 
-#define SKIPTEST(s1)                                        \
-    if (BOX64ENV(dynarec_test)) {                           \
-        LI(s1, 0);                                         \
-        STW(s1, offsetof(x64emu_t, test.clean), xEmu);     \
+#define SKIPTEST(s1)                                   \
+    if (BOX64ENV(dynarec_test)) {                      \
+        LI(s1, 0);                                     \
+        STW(s1, offsetof(x64emu_t, test.clean), xEmu); \
     }
 
-#define GOTEST(s1, s2)                                      \
-    if (BOX64ENV(dynarec_test)) {                           \
-        MOV32w(s2, 1);                                     \
-        STW(s2, offsetof(x64emu_t, test.test), xEmu);      \
+#define GOTEST(s1, s2)                                \
+    if (BOX64ENV(dynarec_test)) {                     \
+        MOV32w(s2, 1);                                \
+        STW(s2, offsetof(x64emu_t, test.test), xEmu); \
     }
 
 #define GETREX()                                   \
@@ -2616,24 +2657,24 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 //  +32: B +2*4            (-> end at +40)
 //  +36: LI s1, 0x0100    (LT)
 //  +40: OR / STH          (end)
-#define FCOM(w, v1, v2, s1, s2, s3)                                 \
-    LHZ(s3, offsetof(x64emu_t, sw), xEmu);                          \
-    ANDId(s3, s3, 0xB8FF);  /* mask off C0(8),C2(10),C3(14) */     \
-    FCMPU(0, v1, v2);                                               \
-    /* Build result branchlessly using ISEL */                       \
-    LI(s1, 0);             /* zero for ISEL false case */            \
-    /* LT → C0 (0x0100) */                                          \
-    LI(s2, 0x0100);                                                  \
-    ISEL(s2, s2, s1, BI(CR0, CR_LT));  /* s2 = LT ? 0x0100 : 0 */ \
-    OR(s3, s3, s2);                                                  \
-    /* EQ → C3 (0x4000) */                                          \
-    LI(s2, 0x4000);                                                  \
-    ISEL(s2, s2, s1, BI(CR0, CR_EQ));  /* s2 = EQ ? 0x4000 : 0 */ \
-    OR(s3, s3, s2);                                                  \
-    /* SO → C0|C2|C3 (0x4500) */                                    \
-    LI(s2, 0x4500);                                                  \
-    ISEL(s2, s2, s1, BI(CR0, CR_SO));  /* s2 = SO ? 0x4500 : 0 */  \
-    OR(s3, s3, s2);                                                  \
+#define FCOM(w, v1, v2, s1, s2, s3)                              \
+    LHZ(s3, offsetof(x64emu_t, sw), xEmu);                       \
+    ANDId(s3, s3, 0xB8FF); /* mask off C0(8),C2(10),C3(14) */    \
+    FCMPU(0, v1, v2);                                            \
+    /* Build result branchlessly using ISEL */                   \
+    LI(s1, 0); /* zero for ISEL false case */                    \
+    /* LT → C0 (0x0100) */                                       \
+    LI(s2, 0x0100);                                              \
+    ISEL(s2, s2, s1, BI(CR0, CR_LT)); /* s2 = LT ? 0x0100 : 0 */ \
+    OR(s3, s3, s2);                                              \
+    /* EQ → C3 (0x4000) */                                       \
+    LI(s2, 0x4000);                                              \
+    ISEL(s2, s2, s1, BI(CR0, CR_EQ)); /* s2 = EQ ? 0x4000 : 0 */ \
+    OR(s3, s3, s2);                                              \
+    /* SO → C0|C2|C3 (0x4500) */                                 \
+    LI(s2, 0x4500);                                              \
+    ISEL(s2, s2, s1, BI(CR0, CR_SO)); /* s2 = SO ? 0x4500 : 0 */ \
+    OR(s3, s3, s2);                                              \
     STH(s3, offsetof(x64emu_t, sw), xEmu);
 
 #define FCOMS(v1, v2, s1, s2, s3) FCOM(S, v1, v2, s1, s2, s3)
@@ -2659,32 +2700,32 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 //  +32: B +2*4            (-> end at +40)
 //  +36: LI s1, 1          (LT)
 //  +40: OR                (end)
-#define FCOMI(w, v1, v2, s1, s2)                                    \
-    IFX (X_OF | X_AF | X_SF | X_PEND) {                             \
-        MOV64x(s2, ((1 << F_OF) | (1 << F_AF) | (1 << F_SF)));     \
-        ANDC(xFlags, xFlags, s2);                                   \
-    }                                                               \
-    IFX (X_CF | X_PF | X_ZF | X_PEND) {                             \
-        MOV32w(s2, 0b01000101); /* CF|PF|ZF mask = 0x45 */         \
-        ANDC(xFlags, xFlags, s2);                                   \
-        FCMPU(0, v1, v2);                                           \
-        BC(BO_TRUE, BI(CR0, CR_SO), 5*4);  /* -> UN at +20 */       \
-        BEQ(6*4);                          /* -> EQ at +28 */       \
-        BLT(7*4);                          /* -> LT at +36 */      \
-        /* GT: s1 = 0 */                                            \
-        LI(s1, 0);                                                  \
-        B(6*4);                            /* -> end at +40 */      \
-        /* UN: CF|PF|ZF = 0x45 */                                   \
-        MR(s1, s2);  /* s2 already has 0x45 */                      \
-        B(4*4);                            /* -> end at +40 */      \
-        /* EQ: ZF = 0x40 */                                         \
-        LI(s1, 0b01000000);                                         \
-        B(2*4);                            /* -> end at +40 */      \
-        /* LT: CF = 1 */                                            \
-        LI(s1, 1);                                                  \
-        /* end: merge into flags */                                 \
-        OR(xFlags, xFlags, s1);                                     \
-    }                                                               \
+#define FCOMI(w, v1, v2, s1, s2)                               \
+    IFX (X_OF | X_AF | X_SF | X_PEND) {                        \
+        MOV64x(s2, ((1 << F_OF) | (1 << F_AF) | (1 << F_SF))); \
+        ANDC(xFlags, xFlags, s2);                              \
+    }                                                          \
+    IFX (X_CF | X_PF | X_ZF | X_PEND) {                        \
+        MOV32w(s2, 0b01000101); /* CF|PF|ZF mask = 0x45 */     \
+        ANDC(xFlags, xFlags, s2);                              \
+        FCMPU(0, v1, v2);                                      \
+        BC(BO_TRUE, BI(CR0, CR_SO), 5 * 4); /* -> UN at +20 */ \
+        BEQ(6 * 4);                         /* -> EQ at +28 */ \
+        BLT(7 * 4);                         /* -> LT at +36 */ \
+        /* GT: s1 = 0 */                                       \
+        LI(s1, 0);                                             \
+        B(6 * 4); /* -> end at +40 */                          \
+        /* UN: CF|PF|ZF = 0x45 */                              \
+        MR(s1, s2); /* s2 already has 0x45 */                  \
+        B(4 * 4);   /* -> end at +40 */                        \
+        /* EQ: ZF = 0x40 */                                    \
+        LI(s1, 0b01000000);                                    \
+        B(2 * 4); /* -> end at +40 */                          \
+        /* LT: CF = 1 */                                       \
+        LI(s1, 1);                                             \
+        /* end: merge into flags */                            \
+        OR(xFlags, xFlags, s1);                                \
+    }                                                          \
     SET_DFNONE()
 
 #define FCOMIS(v1, v2, s1, s2) FCOMI(S, v1, v2, s1, s2)
@@ -2696,69 +2737,69 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 // SNEZ: Set if Not Equal to Zero — dst = (src != 0) ? 1 : 0
 // Uses SUBFIC+SUBFE+NEG sequence: carry-based detection
-#define SNEZ(dst, src)                   \
-    do {                                 \
-        SUBFIC(dst, src, 0);             \
-        SUBFE(dst, dst, dst);            \
-        NEG(dst, dst);                   \
+#define SNEZ(dst, src)        \
+    do {                      \
+        SUBFIC(dst, src, 0);  \
+        SUBFE(dst, dst, dst); \
+        NEG(dst, dst);        \
     } while (0)
 
 // SEQZ: Set Equal Zero — dst = (src == 0) ? 1 : 0
-#define SEQZ(dst, src)                   \
-    do {                                 \
-        CNTLZD(dst, src);               \
-        SRDI(dst, dst, 6);              \
+#define SEQZ(dst, src)     \
+    do {                   \
+        CNTLZD(dst, src);  \
+        SRDI(dst, dst, 6); \
     } while (0)
 
 // SLTI: Set Less Than Immediate — dst = (src < imm) ? 1 : 0
 // PPC64LE has no direct SLTI; use CMPDI + extract LT bit from CR0
-#define SLTI(dst, src, imm)              \
-    do {                                 \
-        CMPDI(src, imm);                 \
-        MFCR(dst);                       \
-        RLWINM(dst, dst, 1, 31, 31);     \
+#define SLTI(dst, src, imm)          \
+    do {                             \
+        CMPDI(src, imm);             \
+        MFCR(dst);                   \
+        RLWINM(dst, dst, 1, 31, 31); \
     } while (0)
 
 // LDXxw: Indexed load, 32/64 conditional on rex.w
-#define LDXxw(rd, base, idx)             \
-    do {                                 \
-        if (rex.w)                       \
-            LDX(rd, base, idx);          \
-        else                             \
-            LWZX(rd, base, idx);         \
+#define LDXxw(rd, base, idx)     \
+    do {                         \
+        if (rex.w)               \
+            LDX(rd, base, idx);  \
+        else                     \
+            LWZX(rd, base, idx); \
     } while (0)
 
 // MOD_DU: unsigned 64-bit modulo (dst = dst % divisor), uses x3 as scratch
 // PPC64LE has no modulo — implement as: q = dst / divisor; dst = dst - q * divisor
-#define MOD_DU(dst, dst2, divisor)       \
-    do {                                 \
-        DIVDU(x3, dst, divisor);         \
-        MULLD(x3, x3, divisor);          \
-        SUB(dst, dst, x3);              \
+#define MOD_DU(dst, dst2, divisor) \
+    do {                           \
+        DIVDU(x3, dst, divisor);   \
+        MULLD(x3, x3, divisor);    \
+        SUB(dst, dst, x3);         \
     } while (0)
 
 // MOD_D: signed 64-bit modulo (dst = dst % divisor), uses x3 as scratch
-#define MOD_D(dst, dst2, divisor)        \
-    do {                                 \
-        DIVD(x3, dst, divisor);          \
-        MULLD(x3, x3, divisor);          \
-        SUB(dst, dst, x3);              \
+#define MOD_D(dst, dst2, divisor) \
+    do {                          \
+        DIVD(x3, dst, divisor);   \
+        MULLD(x3, x3, divisor);   \
+        SUB(dst, dst, x3);        \
     } while (0)
 
 // MOD_WU: unsigned 32-bit modulo (dst = dst % divisor), uses x3 as scratch
-#define MOD_WU(dst, dst2, divisor)       \
-    do {                                 \
-        DIVWU(x3, dst, divisor);         \
-        MULLW(x3, x3, divisor);          \
-        SUB(dst, dst, x3);              \
+#define MOD_WU(dst, dst2, divisor) \
+    do {                           \
+        DIVWU(x3, dst, divisor);   \
+        MULLW(x3, x3, divisor);    \
+        SUB(dst, dst, x3);         \
     } while (0)
 
 // MOD_W: signed 32-bit modulo (dst = dst % divisor), uses x3 as scratch
-#define MOD_W(dst, dst2, divisor)        \
-    do {                                 \
-        DIVW(x3, dst, divisor);          \
-        MULLW(x3, x3, divisor);          \
-        SUB(dst, dst, x3);              \
+#define MOD_W(dst, dst2, divisor) \
+    do {                          \
+        DIVW(x3, dst, divisor);   \
+        MULLW(x3, x3, divisor);   \
+        SUB(dst, dst, x3);        \
     } while (0)
 
 #define PURGE_YMM()
@@ -2774,61 +2815,69 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // LOCK_8_OP: atomic byte operation using LBARX/STBCXd
 // s1 = old byte value (output), wback = address, op uses s1 as input and puts result in s4
 // Typical: LOCK_8_OP(ADD(s4, s1, gd), s1, wback, s3, s4, s5, s6)
-#define LOCK_8_OP(op, s1, wback, s3, s4, s5, s6)    \
-    do {                                              \
-        LWSYNC();                                     \
-        MARKLOCK;                                     \
-        LBARX(s1, 0, wback);                          \
-        op;                                           \
-        STBCXd(s4, 0, wback);                         \
-        BNE_MARKLOCK_CR0;                             \
-        LWSYNC();                                     \
+#define LOCK_8_OP(op, s1, wback, s3, s4, s5, s6) \
+    do {                                         \
+        LWSYNC();                                \
+        MARKLOCK;                                \
+        LBARX(s1, 0, wback);                     \
+        op;                                      \
+        STBCXd(s4, 0, wback);                    \
+        BNE_MARKLOCK_CR0;                        \
+        LWSYNC();                                \
     } while (0)
 
 // LOCK_32_IN_8BYTE: atomic 32-bit op on unaligned address within an 8-byte block
 // Uses LDARX/STDCXd on the containing 8-byte-aligned address
 // s1 = old 32-bit value (output), wback = original address, op computes new value in s4
-#define LOCK_32_IN_8BYTE(op, s1, wback, s3, s4, s5, s6) \
-    do {                                                  \
+#define LOCK_32_IN_8BYTE(op, s1, wback, s3, s4, s5, s6)               \
+    do {                                                              \
         ANDI(s3, wback, 0b100);   /* byte offset within 8B: 0 or 4 */ \
         SLDI(s3, s3, 3);          /* bit offset: 0 or 32 */           \
-        RLDICR(s6, wback, 0, 60); /* align to 8 bytes: wback & ~7 */ \
-        LWSYNC();                                                      \
-        MARKLOCK;                                                      \
-        LDARX(s5, 0, s6);        /* load-linked 8 bytes */            \
-        SRD(s1, s5, s3);         /* shift old 32-bit value down */    \
-        RLDICL(s1, s1, 0, 32);   /* zero upper 32 bits */            \
-        op;                       /* s4 = f(s1, operand) */           \
+        RLDICR(s6, wback, 0, 60); /* align to 8 bytes: wback & ~7 */  \
+        LWSYNC();                                                     \
+        MARKLOCK;                                                     \
+        LDARX(s5, 0, s6);      /* load-linked 8 bytes */              \
+        SRD(s1, s5, s3);       /* shift old 32-bit value down */      \
+        RLDICL(s1, s1, 0, 32); /* zero upper 32 bits */               \
+        op;                    /* s4 = f(s1, operand) */              \
         /* insert s4 back: clear 32-bit field, OR in new value */     \
-        LI(s1, -1);              /* temp all-ones */                  \
-        RLDICL(s1, s1, 0, 32);   /* mask = 0x00000000FFFFFFFF */     \
-        SLD(s1, s1, s3);         /* shift mask to position */         \
-        ANDC(s5, s5, s1);        /* clear old field */                \
-        RLDICL(s4, s4, 0, 32);   /* zero upper bits of new value */  \
-        SLD(s4, s4, s3);         /* shift new value to position */   \
-        OR(s5, s5, s4);          /* insert new value */               \
-        STDCXd(s5, 0, s6);       /* store-conditional */              \
-        BNE_MARKLOCK_CR0;                                              \
-        LWSYNC();                                                      \
-        /* restore s1 = old 32-bit value */                            \
-        SRD(s1, s5, s3);                                               \
+        LI(s1, -1);            /* temp all-ones */                    \
+        RLDICL(s1, s1, 0, 32); /* mask = 0x00000000FFFFFFFF */        \
+        SLD(s1, s1, s3);       /* shift mask to position */           \
+        ANDC(s5, s5, s1);      /* clear old field */                  \
+        RLDICL(s4, s4, 0, 32); /* zero upper bits of new value */     \
+        SLD(s4, s4, s3);       /* shift new value to position */      \
+        OR(s5, s5, s4);        /* insert new value */                 \
+        STDCXd(s5, 0, s6);     /* store-conditional */                \
+        BNE_MARKLOCK_CR0;                                             \
+        LWSYNC();                                                     \
+        /* restore s1 = old 32-bit value */                           \
+        SRD(s1, s5, s3);                                              \
         RLDICL(s1, s1, 0, 32);                                        \
     } while (0)
 
 // LOCK_3264_CROSS_8BYTE: best-effort atomic for values crossing an 8-byte boundary
 // Uses LDARX/STDCXd as a lock on the lower aligned 8B, then non-atomic load/modify/store
 #define LOCK_3264_CROSS_8BYTE(op, s1, wback, s4, s5, s6) \
-    do {                                                    \
-        RLDICR(s6, wback, 0, 60); /* align to 8 bytes */  \
-        LWSYNC();                                            \
-        MARKLOCK;                                            \
-        LDARX(s5, 0, s6);        /* reservation lock */    \
-        if (rex.w) { LD(s1, 0, wback); } else { LWZ(s1, 0, wback); } \
-        op;                       /* s4 = f(s1, operand) */ \
-        if (rex.w) { STD(s4, 0, wback); } else { STW(s4, 0, wback); } \
-        STDCXd(s5, 0, s6);       /* release reservation */ \
-        BNE_MARKLOCK_CR0;                                    \
-        LWSYNC();                                            \
+    do {                                                 \
+        RLDICR(s6, wback, 0, 60); /* align to 8 bytes */ \
+        LWSYNC();                                        \
+        MARKLOCK;                                        \
+        LDARX(s5, 0, s6); /* reservation lock */         \
+        if (rex.w) {                                     \
+            LD(s1, 0, wback);                            \
+        } else {                                         \
+            LWZ(s1, 0, wback);                           \
+        }                                                \
+        op; /* s4 = f(s1, operand) */                    \
+        if (rex.w) {                                     \
+            STD(s4, 0, wback);                           \
+        } else {                                         \
+            STW(s4, 0, wback);                           \
+        }                                                \
+        STDCXd(s5, 0, s6); /* release reservation */     \
+        BNE_MARKLOCK_CR0;                                \
+        LWSYNC();                                        \
     } while (0)
 
 #ifndef SCRATCH_USAGE
@@ -2840,18 +2889,18 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // ========================================================================
 // Uses stack red zone + scratch register for store-load byte-reverse
 // Note: tmp is a scratch GPR
-#define REVBxw(Rd, Rs, tmp)                              \
-    do {                                                  \
-        if (rex.w) {                                      \
-            STD(Rs, -8, xSP);                             \
-            LI(tmp, -8);                                  \
-            LDBRX(Rd, xSP, tmp);                          \
-        } else {                                          \
-            STW(Rs, -4, xSP);                             \
-            LI(tmp, -4);                                  \
-            LWBRX(Rd, xSP, tmp);                          \
-            ZEROUP(Rd);                                   \
-        }                                                 \
+#define REVBxw(Rd, Rs, tmp)      \
+    do {                         \
+        if (rex.w) {             \
+            STD(Rs, -8, xSP);    \
+            LI(tmp, -8);         \
+            LDBRX(Rd, xSP, tmp); \
+        } else {                 \
+            STW(Rs, -4, xSP);    \
+            LI(tmp, -4);         \
+            LWBRX(Rd, xSP, tmp); \
+            ZEROUP(Rd);          \
+        }                        \
     } while (0)
 
 #endif //__DYNAREC_PPC64LE_HELPER_H__

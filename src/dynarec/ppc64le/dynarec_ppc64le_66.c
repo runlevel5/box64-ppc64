@@ -216,7 +216,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGWEW(x1, x2, 0);
-            emit_sub16(dyn, ninst, ed, gd, x4, x5, x6);
+            emit_sub16(dyn, ninst, ed, gd, x4, x5, x6, x3);
             EWBACK;
             break;
         case 0x2B:
@@ -224,7 +224,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGWEW(x1, x2, 0);
-            emit_sub16(dyn, ninst, gd, ed, x4, x5, x6);
+            emit_sub16(dyn, ninst, gd, ed, x4, x5, x6, x3);
             GWBACK;
             break;
         case 0x2D:
@@ -233,7 +233,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             i32 = F16;
             BF_EXTRACT(x1, xRAX, 15, 0);
             MOV32w(x2, i32);
-            emit_sub16(dyn, ninst, x1, x2, x3, x4, x5);
+            emit_sub16(dyn, ninst, x1, x2, x3, x4, x5, x6);
             BF_INSERT(xRAX, x1, 15, 0);
             break;
         case 0x31:
@@ -409,7 +409,10 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
                     emit_add16(dyn, ninst, ed, x5, x2, x4, x6);
                     EWBACK;
@@ -422,7 +425,10 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
                     emit_or16(dyn, ninst, ed, x5, x2, x4);
                     EWBACK;
@@ -436,7 +442,10 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     READFLAGS(X_CF);
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
                     emit_adc16(dyn, ninst, ed, x5, x2, x4, x6);
                     EWBACK;
@@ -450,7 +459,10 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     READFLAGS(X_CF);
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
                     emit_sbb16(dyn, ninst, ed, x5, x2, x4, x6);
                     EWBACK;
@@ -463,7 +475,10 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
                     emit_and16(dyn, ninst, ed, x5, x2, x4);
                     EWBACK;
@@ -476,9 +491,12 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
-                    emit_sub16(dyn, ninst, ed, x5, x2, x4, x6);
+                    emit_sub16(dyn, ninst, ed, x5, x2, x4, x6, x3);
                     EWBACK;
                     break;
                 case 6:
@@ -489,7 +507,10 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
                     emit_xor16(dyn, ninst, ed, x5, x2, x4, x6);
                     EWBACK;
@@ -502,7 +523,10 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     }
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEW(x1, (opcode == 0x81) ? 2 : 1);
-                    if (opcode == 0x81) i32 = F16; else i32 = (uint16_t)(int16_t)F8S;
+                    if (opcode == 0x81)
+                        i32 = F16;
+                    else
+                        i32 = (uint16_t)(int16_t)F8S;
                     if (i32) {
                         MOV32w(x5, i32);
                         emit_cmp16(dyn, ninst, ed, x5, x2, x3, x4, x6);
@@ -817,7 +841,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     BF_EXTRACT(x2, xRAX, 15, 0);
                     MULLW(x2, x2, ed);
                     UFLAG_IF {
-                        STW(x2, offsetof(x64emu_t, res), xEmu);  // store full 32-bit product
+                        STW(x2, offsetof(x64emu_t, res), xEmu); // store full 32-bit product
                     }
                     BF_INSERT(xRAX, x2, 15, 0);
                     SRDI(x2, x2, 16);
@@ -831,7 +855,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     EXTSH(x2, xRAX);
                     MULLW(x2, x2, ed);
                     UFLAG_IF {
-                        STW(x2, offsetof(x64emu_t, res), xEmu);  // store full 32-bit product
+                        STW(x2, offsetof(x64emu_t, res), xEmu); // store full 32-bit product
                     }
                     BF_INSERT(xRAX, x2, 15, 0);
                     SRDI(x2, x2, 16);

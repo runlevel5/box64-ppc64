@@ -177,13 +177,13 @@ Each batch follows the ADD pattern (6 opcodes per group: Eb/Gb, Ed/Gd, Gb/Eb, Gd
 
 Upstream the `tests/dynarec/` NASM test infrastructure for opcode-level regression testing. This is orthogonal to opcode upstreaming (Phases 1-7) and can be proposed at any time. All backends (ARM64, RV64, LA64, PPC64LE) benefit equally since these tests exercise the interpreter and all dynarec backends.
 
-**Current state**: 37 `.asm` test files + `test_framework.inc` + `run_tests.sh` exist on the `ppc64le-dynarec` branch. Upstream has no `tests/dynarec/` directory — its existing tests use pre-compiled x86_64 ELF binaries + `.txt` reference outputs compared via `runTest.cmake`.
+**Current state**: 38 `.asm` test files + `test_framework.inc` + `run_tests.sh` exist on the `ppc64le-dynarec` branch. Upstream has no `tests/dynarec/` directory — its existing tests use pre-compiled x86_64 ELF binaries + `.txt` reference outputs compared via `runTest.cmake`.
 
 #### Approach: Hybrid (pre-compiled binaries + optional NASM recompilation)
 
 **Files to upstream**:
 - `tests/dynarec/test_framework.inc` — macro framework (INIT_TESTS, TEST_CASE, CHECK_EQ_32/64, SAVE_FLAGS, CHECK_FLAGS_EQ, END_TESTS); raw syscalls only, no libc dependency
-- 37 `.asm` source files (one per opcode group / feature area)
+- 38 `.asm` source files (one per opcode group / feature area)
 - Pre-compiled x86_64 ELF static binaries for each (committed to repo, like upstream's existing `tests/testNN` binaries)
 - `.txt` reference output files for each (generated once on native x86_64, committed to repo)
 - `tests/dynarec/run_tests.sh` — convenience script for manual testing outside of ctest
@@ -227,7 +227,7 @@ endif()
 - Tests follow upstream's existing `add_test()` + `runTest.cmake` pattern exactly
 - All test binaries are static (no libc dependency) — they use raw syscalls via `test_framework.inc`
 
-**Test inventory** (37 files on `ppc64le-dynarec`):
+**Test inventory** (38 files on `ppc64le-dynarec`):
 
 | Test file | Description |
 |-----------|-------------|
@@ -266,6 +266,7 @@ endif()
 | `test_shufps.asm` | SHUFPS detailed testing |
 | `test_aes_crc.asm` | AES-NI and CRC32 instructions |
 | `test_x87.asm` | x87 FPU operations |
+| `test_sub_carry_fusion.asm` | SUB carry flag fusion (SUB→ADC/SBB across block boundaries, 40 tests) |
 
 **Batching strategy**:
 - **Batch 8a**: Framework + integer tests (test_framework.inc, test_add_or_sub, test_and_xor, test_cmp_test, test_int_arith, test_mov, test_push_pop_misc, test_shifts, all updateflags tests, test_misc_flags, test_misc_int, test_bit_extract, test_conversions, test_movs_stos, test_mov_push_imm, test_lock_atomic) — ~22 tests
@@ -352,6 +353,7 @@ Performance optimization that replaces branchy flag materialization patterns wit
 | `271f4e111` | Phase 2 | SF fusion for 24 arithmetic emit functions (ADD/SUB/NEG/INC/DEC/ADC/SBB) + pass0.h fix | 24 | — |
 | `adb964763` | Phase 3 | Branchless flag materialization (all remaining branchy patterns) | 151 | -121 |
 | `5b7626078` | NATIVEMV | Branchless ISEL-based CMOVcc fusion (replaces NOP stubs) | 11 macros | — |
+| — | Phase 4 | SUB carry fusion: nat_flags_needcarry + MV save + 3-way dispatch in emit_sub8/16/32/32c | 5 emit fns, 20 call sites | — |
 
 **Phase 3 breakdown** — 151 branchy patterns eliminated across 5 files:
 
@@ -508,11 +510,11 @@ Expected: `100% tests passed, 0 tests failed out of 33`.
 # Rsync source (includes bin/ with pre-compiled x86_64 test binaries)
 rsync -az --exclude='.git' --exclude='build' /Users/tle/Work/box64/ tle@192.168.1.247:/tmp/box64-build/
 
-# Run all 42 test suites (dynarec vs interpreter comparison)
+# Run all 43 test suites (dynarec vs interpreter comparison)
 ssh tle@192.168.1.247 'bash -c "BOX64=/tmp/box64-build/build/box64 bash /tmp/box64-build/tests/dynarec/run_dynarec_tests.sh"'
 ```
 
-Expected: `38 passed, 4 failed, 0 skipped / 42 total`. The 4 known failures are pre-existing:
+Expected: `39 passed, 4 failed, 0 skipped / 43 total`. The 4 known failures are pre-existing:
 - `test_aes_crc` (33/36): both modes, not a dynarec bug
 - `test_misc_flags` (29/30): both modes, not a dynarec bug
 - `test_sse_insert_extract` (26/33): both modes, not a dynarec bug

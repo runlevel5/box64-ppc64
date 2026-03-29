@@ -379,8 +379,8 @@ int fpuCacheNeedsTransform(dynarec_ppc64le_t* dyn, int ninst)
     vmxcacheUnwind(&cache_i2);
 
     for (int i = 0; i < 24; ++i) {
-        if (dyn->insts[ninst].v.vmxcache[i].v) {        // there is something at ninst for i
-            if (!cache_i2.vmxcache[i].v) {               // but there is nothing at i2 for i
+        if (dyn->insts[ninst].v.vmxcache[i].v) { // there is something at ninst for i
+            if (!cache_i2.vmxcache[i].v) {       // but there is nothing at i2 for i
                 ret = 1;
             } else if (dyn->insts[ninst].v.vmxcache[i].v != cache_i2.vmxcache[i].v) { // there is something different
                 if (dyn->insts[ninst].v.vmxcache[i].n != cache_i2.vmxcache[i].n) {    // not the same x64 reg
@@ -776,6 +776,9 @@ void updateNativeFlags(dynarec_ppc64le_t* dyn)
                         dyn->insts[j].nat_flags_fusion = 1;
                         if (dyn->insts[i].x64.use_flags & X_SF) {
                             dyn->insts[j].nat_flags_needsign = 1;
+                        }
+                        if (dyn->insts[i].x64.use_flags & X_CF) {
+                            dyn->insts[j].nat_flags_needcarry = 1;
                         }
                         dyn->insts[i].x64.use_flags = 0;
                         dyn->insts[j].nat_next_inst = i;

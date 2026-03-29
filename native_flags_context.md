@@ -17,7 +17,7 @@ box64 supports four dynarec backends. They use **two fundamentally different mod
 | **Analysis functions** | `updateNativeFlags` + `propagateNativeFlags` + `getNativeFlagsUsed` + `mark_natflag` | `updateNativeFlags` only | `updateNativeFlags` only | `updateNativeFlags` only |
 | **Pass 0 macros** | `FEMIT`, `IFNATIVE`, `IFXNATIVE` | `READFLAGS_FUSION`, `NAT_FLAGS_OPS` | Same as PPC64LE | Same as PPC64LE |
 | **Branch mechanism** | `Bcc` on hardware NZCV | `CMPD(op1,op2)` + `Bcond` | Compare-and-branch: `BEQ/BLT/BLTU(r1,r2,off)` | Compare-and-branch: `BEQ/BLT/BLTU(r1,r2,off)` |
-| **Per-insn metadata** | 12 fields (bitmask-based) | 8 fields (boolean + registers) | 9 fields (identical to PPC64LE + `nat_flags_sf`) | 8 fields (same as PPC64LE, no `nat_flags_sf`) |
+| **Per-insn metadata** | 12 fields (bitmask-based) | 9 fields (boolean + registers) | 9 fields (identical to PPC64LE + `nat_flags_sf`) | 8 fields (same as PPC64LE, no `nat_flags_sf`) |
 | **NATIVEJUMP** | N/A (uses `Bcc` directly) | `CMPD_ZR + Bcond + NOP` (3 insns) | Compare-and-branch (1-2 insns) | Compare-and-branch (1-2 insns) |
 | **NATIVESET (SETcc)** | Implemented | Implemented (`CMP + MFCR + RLWINM`) | Implemented | Implemented |
 | **NATIVEMV (CMOVcc)** | Implemented | **Implemented (ISEL)** | Implemented | Implemented |
@@ -32,7 +32,7 @@ This means **the fusion model is the correct architectural fit for PPC64LE** —
 1. ~~**NATIVEMV is unimplemented**~~ — ✅ DONE (commit `5b7626078`, ISEL-based)
 2. ~~**NAT_FLAGS_ENABLE_SF is dead code**~~ — ✅ DONE (commit `271f4e111`, called in 24 emit functions)
 3. **No 8/16-bit fusion** — LA64 handles some via sign/zero extension
-4. **ADD/SUB carry fusion** — JC/JNC after ADD/SUB doesn't fuse (see Gap 2)
+4. **ADD/SUB carry fusion** — ~~SUB carry~~ ✅ DONE; ADD carry still pending (see Gap 2)
 
 ---
 
@@ -249,7 +249,7 @@ RV64 implements conditional move macros using branch-over-move patterns: `CMPD(o
 | CMP 32/64 | Full (NF_EQ+SF+VF+CF) | Full (ZF+CF+sign) | Full (ZF+CF+sign) | Full (ZF+CF+sign) |
 | TEST 32/64 | Full | Full | Full | Full |
 | ADD 32/64 | Full | ZF+SF | ZF only | ZF only |
-| SUB 32/64 | Full | ZF+SF | ZF only | ZF only |
+| SUB 32/64 | Full | ZF+SF+CF | ZF only | ZF only |
 | AND/OR/XOR 32/64 | Full (NF_EQ+SF) | ZF+SF | ZF only | ZF only |
 | NEG/INC/DEC 32/64 | Full | ZF+SF | ZF only | ZF only |
 | ADC/SBB 32/64 | Partial | ZF+SF | ZF only | ZF only |
@@ -284,11 +284,22 @@ Note: LA64 and RV64 achieve better fused instruction counts than PPC64LE because
 - **Tested:** `test_cmovcc_fusion` 64/64 PASS, zero regressions across 42/52 NASM tests and 16/34 ctest.
 
 ### Gap 2: ADD/SUB Carry Fusion (JC/JNC after ADD/SUB)
-- **Current state:** ADD/SUB fuse for JZ/JNZ + JS/JNS (no `NAT_FLAGS_ENABLE_CARRY()` call for carry)
-- **What's needed:** Call `NAT_FLAGS_ENABLE_CARRY()` in emit_add32, emit_sub32, etc.
-- **PPC64LE mechanism:** At branch site, use unsigned CMPLD to reconstruct carry
-- **Challenge:** ADD overflow/carry can't be recovered from a simple CMP of operands. Fusion saves the TWO input operands, then does CMP at branch. For carry after ADD: carry = (result < op1), but fusion stores (op1, op2), not (result, op1). Need to figure out if the existing fusion mechanism can express this.
-- **Difficulty:** MEDIUM — may need new comparison patterns or result-based fusion
+
+#### SUB Carry Fusion — ✅ DONE
+- **Implementation:** Added `nat_flags_needcarry` field to `instruction_ppc64le_t` and `NAT_FLAGS_ENABLE_CARRY()` calls to all 5 SUB emit functions (emit_sub8, emit_sub16, emit_sub32, emit_sub32c, emit_sub8c/sub16 forwarding).
+- **Mechanism:** Before the SUB instruction, when carry fusion is active (`nat_flags_fusion && nat_flags_needcarry`), save op1 into scratch register s6 via `MV(s6, s1)`. Then in the fusion block, 3-way dispatch:
+  1. **needcarry** → `NAT_FLAGS_OPS(saved_op1, op2, ...)` — passes original operands for unsigned CMPLD at branch site
+  2. **needsign** → sign-extend result, `NAT_FLAGS_OPS(result, xZR, ...)`
+  3. **else** → zero-extend result, `NAT_FLAGS_OPS(result, xZR, ...)`
+- **Key insight:** Carry and needsign are mutually exclusive (carry consumers use X_CF or X_CF|X_ZF, never X_SF). For SUB, carry = (op1 < op2) in unsigned terms, which maps directly to CMPLD(op1, op2) at the branch site.
+- **updateNativeFlags():** Extended to set `nat_flags_needcarry` on producer when consumer requests X_CF. The backward walk validates fusion eligibility including the new carry path.
+- **emit_sub32c special case:** When using the ADDI fast path (small constant), s2 doesn't hold the constant value. Added guard to materialize constant into s2 when carry fusion is active.
+- **Tests:** `test_sub_carry_fusion.asm` — 40 sub-tests covering sub8/16/32/64 → ADC/SBB with CF=1 and CF=0, immediate paths, chained SUBs, ZF non-regression.
+
+#### ADD Carry Fusion — Still Pending
+- **Challenge:** ADD overflow/carry can't be recovered from a simple CMP of operands. For carry after ADD: carry = (result < op1), but fusion stores (op1, op2), not (result, op1). The existing fusion mechanism passes two operands to CMPLD; for ADD carry, we'd need to compare result against an operand instead.
+- **Options:** (a) Save result instead of op2 for ADD carry path; (b) Compute result at branch site from saved operands; (c) New comparison pattern at consumer
+- **Difficulty:** MEDIUM — requires different operand strategy than SUB carry
 
 ### Gap 3: Wire Up NATIVESET for SETcc — ✅ ALREADY DONE
 - **Current state:** NATIVESET is fully wired into SETcc handlers (0x90-0x9F) in `_0f.c` lines 1024-1049. The `GOCOND` SETcc expansion checks `nat_flags_fusion` and calls `NATIVESET(NATYES, tmp3)` for the fusion path, falling back to xFlags extraction otherwise.
@@ -376,9 +387,10 @@ uint8_t nat_flags_carry:1;     // line 130 - producer supports carry-based condi
 uint8_t nat_flags_sign:1;      // line 131 - producer supports sign-based conditions (JL/JGE/JLE/JG)
 uint8_t nat_flags_sf:1;        // line 132 - producer supports SF-only conditions (JS/JNS)
 uint8_t nat_flags_needsign:1;  // line 133 - consumer needs sign flag (set by updateNativeFlags)
-uint8_t nat_flags_op1;         // line 135 - PPC64LE register holding first operand
-uint8_t nat_flags_op2;         // line 136 - PPC64LE register holding second operand
-uint16_t nat_next_inst;        // line 143 - instruction index of the consumer
+uint8_t nat_flags_needcarry:1; // line 134 - consumer needs carry flag (set by updateNativeFlags)
+uint8_t nat_flags_op1;         // line 136 - PPC64LE register holding first operand
+uint8_t nat_flags_op2;         // line 137 - PPC64LE register holding second operand
+uint16_t nat_next_inst;        // line 144 - instruction index of the consumer
 ```
 
 ### READFLAGS_FUSION (pass 0) -- lines 17-33 of dynarec_ppc64le_pass0.h
@@ -394,6 +406,7 @@ Validates fusion by walking backward from consumer:
 - Producer must set_flags covering all use_flags
 - Can see through transparent instructions (no_scratch_usage, no flag set/use)
 - If X_SF needed, sets nat_flags_needsign on producer
+- If X_CF needed, sets nat_flags_needcarry on producer
 
 ### NAT_FLAGS_OPS (lines 823-835 of helper.h)
 Stores op1/op2 register numbers into consumer's metadata. If next instruction is transparent (`no_scratch_usage`) and operands are GPRs, copies to scratch registers to prevent clobbering.
@@ -428,9 +441,9 @@ Implemented using ISEL instruction (commit `5b7626078`). Pattern: `CMPD_ZR/CMPLD
 
 ## Test Infrastructure
 
-- **NASM dynarec tests:** 52 pre-built x86_64 ELF binaries in `tests/dynarec/bin/`
+- **NASM dynarec tests:** 53 pre-built x86_64 ELF binaries in `tests/dynarec/bin/`
 - **Test runner:** `tests/dynarec/run_dynarec_tests.sh`
-- **Fusion-specific tests:** `test_jcc_fusion.asm` (89 tests), `test_setcc_fusion.asm` (77 tests), `test_cmovcc_fusion.asm` (64 tests)
+- **Fusion-specific tests:** `test_jcc_fusion.asm` (89 tests), `test_setcc_fusion.asm` (77 tests), `test_cmovcc_fusion.asm` (64 tests), `test_sub_carry_fusion.asm` (40 tests)
 - **ctest:** 34 tests on ppc64le-jit
 - **Pre-existing failures (not caused by our changes):**
   - `test_32bit_*` (6 tests, 32-bit mode not supported)
