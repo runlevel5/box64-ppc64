@@ -42,9 +42,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     uint8_t tmp1, tmp2, tmp3;
     int32_t i32, i32_;
     int64_t j64;
-    int64_t fixedaddress, gdoffset;
-    int unscaled;
-    int lock;
+    int64_t fixedaddress;
     int cacheupd = 0;
     int v0, v1, q0, q1, d0, d1;
     MAYUSE(u8);
@@ -55,8 +53,6 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
     MAYUSE(wb1);
     MAYUSE(wb2);
     MAYUSE(j64);
-    MAYUSE(lock);
-    MAYUSE(gdoffset);
     MAYUSE(v0);
     MAYUSE(v1);
     MAYUSE(q0);
@@ -225,18 +221,9 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 INST_NAME("MOVHLPS Gx, Ex");
                 GETGX(v0, 1);
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
-                // Copy high qword of Ex to low qword of Gx
-                // XXPERMDI with DM=2: T[0:63]=A[64:127], T[64:127]=B[64:127] — but we want Ex.high→Gx.low
-                // Actually: ISA dw0 of v1 → ISA dw1 of v0 (x86 low = ISA dw1)
-                XXPERMDI(VSXREG(v0), VSXREG(v1), VSXREG(v0), 0b00); // v0[dw0]=v1[dw0], v0[dw1]=v0[dw0] → gives us v1.high(x86) in v0.low(x86) and v0.high(x86) preserved...
-                // Wait, let me think more carefully about LE element ordering.
-                // x86 high qword = ISA dw0 on PPC64LE
-                // x86 low qword = ISA dw1 on PPC64LE
                 // MOVHLPS: Gx[63:0] = Ex[127:64], Gx[127:64] unchanged
-                // So: ISA dw1 of Gx = ISA dw0 of Ex; ISA dw0 of Gx unchanged
-                // XXPERMDI(T, A, B, DM): DM[0:1] selects dword: T[dw0] = A[DM[0]], T[dw1] = B[DM[1]]
-                // We want: T[dw0] = v0[dw0] (unchanged high), T[dw1] = v1[dw0] (Ex high = ISA dw0)
-                // DM = 0b00: T[dw0]=A[dw0], T[dw1]=B[dw0]
+                // ISA dw1(Gx) = ISA dw0(Ex), ISA dw0(Gx) unchanged
+                // XXPERMDI DM=0b00: T[dw0]=A[dw0], T[dw1]=B[dw0]
                 XXPERMDI(VSXREG(v0), VSXREG(v0), VSXREG(v1), 0b00);
             } else {
                 INST_NAME("MOVLPS Gx, Ex");
@@ -315,14 +302,8 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGX(v0, 0);
             if (MODREG) {
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
-                // Copy high qword of Gx to low qword of Ex
-                // x86 high = ISA dw0
-                MFVSRD(x4, VSXREG(v0));  // x4 = ISA dw0 = x86 high of Gx
-                MFVSRLD(x5, VSXREG(v1)); // x5 = ISA dw1 = x86 low of Ex... wait, we want low of Ex preserved?
-                // MOVHPS to reg: copies Gx.high to Ex.low, Ex.high unchanged
-                // Actually MOVHPS Ex, Gx: store Gx[127:64] to memory (not used for reg-reg typically)
-                // Intel says MOVHPS r/m only accepts memory operand, so MODREG shouldn't happen
-                // But if it does: ISA dw0 of Gx → ISA dw1 of Ex, ISA dw0 of Ex unchanged
+                // MOVHPS Ex, Gx: store Gx[127:64] to memory; reg-reg form copies Gx.high to Ex.low
+                // ISA dw0(Gx) → ISA dw1(Ex), ISA dw0(Ex) unchanged
                 MFVSRD(x4, VSXREG(v0));      // x4 = ISA dw0 = x86 high of Gx
                 MFVSRD(x5, VSXREG(v1));      // x5 = ISA dw0 = x86 high of Ex (preserve)
                 MTVSRDD(VSXREG(v1), x5, x4); // dw0=high preserved, dw1=Gx.high
@@ -739,113 +720,23 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGX(v0, 1);
             GETEX(v1, 0, 0);
             // CVTPS2PD: convert 2 packed singles (low 64 bits) to 2 packed doubles
-            // x86: float[0] (bits 0-31) → double[0] (bits 0-63), float[1] (bits 32-63) → double[1] (bits 64-127)
-            // On PPC64LE ISA: x86 float[0] is ISA word 3, float[1] is ISA word 2
-            // XVCVSPDP converts ISA word 0 and ISA word 2 to doubles in dw0 and dw1
-            // We need ISA words 2 and 3 → first rearrange to words 0 and 2
-            // XXPERMDI to put ISA dw1 (which has words 2,3) into both dw0 and dw1
-            // then XVCVSPDP will convert word 0 of dw0 and word 0 of dw1
-            // Actually XVCVSPDP: converts word[0] to dw[0] and word[2] to dw[1] in ISA terms
-            // We have: dw1 = [word2, word3], dw0 = [word0, word1]
-            // After XXPERMDI(tmp, v1, v1, 0b11): tmp[dw0] = v1[dw1], tmp[dw1] = v1[dw1]
-            // So tmp = [word3, word2, word3, word2] (ISA: dw0=[w2,w3], dw1=[w2,w3])
-            // XVCVSPDP would then convert word 0 of each dw = word2 and word2... that's wrong
-            // Let me think differently:
-            // XVCVSPDP(T, B): T[dw0] = convert(B[word0]), T[dw1] = convert(B[word2])
-            // We want to convert B[word2] and B[word3]
-            // Rearrange: swap so word3→word0 and word2→word2
-            // Use XXSPLTW to put word3 in all words, then combine? Too complex.
-            // Simpler: XXPERMDI(tmp, v1, v1, 0b10): tmp[dw0]=v1[dw0], tmp[dw1]=v1[dw0]... no
-            // XXPERMDI(tmp, v1, v1, 0b11): tmp[dw0]=v1[dw1], tmp[dw1]=v1[dw1]
-            // so word0=word2, word1=word3, word2=word2, word3=word3
-            // XVCVSPDP converts word0(=word2=x86 float[1]) → dw0(=x86 high double),
-            //                   word2(=word2=x86 float[1]) → dw1(=x86 low double)
-            // Wrong — we get float[1] in both positions.
-            // Need: word0 = ISA word 3 (x86 float[0]), word2 = ISA word 2 (x86 float[1])
-            // Use XXSWAPD (=XXPERMDI dm=2): tmp[dw0]=v1[dw1], tmp[dw1]=v1[dw0]
-            // So word0=word2, word1=word3, word2=word0, word3=word1
-            // XVCVSPDP: dw0=convert(word0=word2=x86 float[1]), dw1=convert(word2=word0=x86 float[3 or other])
-            // Still wrong. The issue is we need word3 in word0 position.
-            // Let's use a different approach: XXSPLTW + individual conversion
-            // Or: use XXSLDWI (shift left double by word immediate)
-            // XXSLDWI(T, A, B, SHW): concatenate A:B, shift left by SHW words, take high 128 bits
-            // If SHW=1: T = {A[w1], A[w2], A[w3], B[w0]}
-            // If SHW=3: T = {A[w3], B[w0], B[w1], B[w2]} — this puts word3 at word0!
-            // XXSLDWI(tmp, v1, v1, 3): tmp = {v1[w3], v1[w0], v1[w1], v1[w2]}
-            // XVCVSPDP: dw0=convert(tmp[w0]=v1[w3]=x86 float[0]) ← correct for x86 double[1]! wait...
-            //           dw1=convert(tmp[w2]=v1[w1]=x86 float[2])  ← wrong
-            // Hmm. Let me reconsider.
-            // x86: CVTPS2PD: double[0] = (double)float[0], double[1] = (double)float[1]
-            // ISA mapping: x86 double[0] = ISA dw1, x86 double[1] = ISA dw0
-            //              x86 float[0] = ISA word3, x86 float[1] = ISA word2
-            // XVCVSPDP: ISA dw0 = convert(ISA word0), ISA dw1 = convert(ISA word2)
-            // We need: ISA dw0 = convert(word2) ← already correct if word2 = x86 float[1]!
-            //          ISA dw1 = convert(word3) ← but XVCVSPDP converts word2 not word3
-            // Wait, XVCVSPDP description says: "converts words 0 and 2 of source to doubles in dwords 0 and 1"
-            // Actually, ISA spec says: XVCVSPDP: for i=0,1: dw[i] = convert(word[2*i]) i.e. words 0 and 2
-            // We need: dw1 = convert(word3), dw0 = convert(word2)
-            // So we need word3 in word2 position and word2 in word0 position
-            // XXSLDWI(tmp, v1, v1, 1): tmp = [w1, w2, w3, w0]
-            // words: 0=w1, 1=w2, 2=w3, 3=w0
-            // XVCVSPDP: dw0 = convert(word0=w1), dw1 = convert(word2=w3)
-            // dw1 = convert(w3) = convert(x86 float[0]) → goes to ISA dw1 = x86 double[0] ✓
-            // dw0 = convert(w1) = convert(x86 float[2]) → wrong, should be x86 float[1]
-            // Try XXSLDWI(tmp, v1, v1, 3): tmp = [w3, w0, w1, w2]
-            // XVCVSPDP: dw0=convert(word0=w3=x86 float[0]), dw1=convert(word2=w1=x86 float[2])
-            // Also wrong.
-            // OK. Let's just use XXSPLTW to set up words individually, or use scalar conversion.
-            // Actually the simplest: just use XXPERMDI to get dw1 into both halves and convert:
-            // XXPERMDI(tmp, v1, v1, 0b11): tmp[dw0]=v1[dw1], tmp[dw1]=v1[dw1]
-            // words: w0=v1.w2, w1=v1.w3, w2=v1.w2, w3=v1.w3
-            // XVCVSPDP: dw0=convert(w0=v1.w2=x86 float[1]), dw1=convert(w2=v1.w2=x86 float[1])
-            // Both are float[1]... wrong.
-            //
-            // The fundamental issue: XVCVSPDP only converts words 0 and 2, but we need words 2 and 3.
-            // Solution: XXSLDWI(tmp, v1, v1, 2) to rotate by 2 words:
-            // tmp = [w2, w3, w0, w1]
-            // XVCVSPDP: dw0=convert(w0_new=w2=x86 float[1]), dw1=convert(w2_new=w0=x86 float[3])
-            // Still wrong for dw1.
-            //
-            // Let me try yet another approach. We want word2→word0 and word3→word2 positions.
-            // XXSLDWI(tmp, v1, v1, 1): [w1,w2,w3,w0]
-            // Then XXSLDWI again? Too many ops.
-            //
-            // Simplest correct approach: use XXSPLTW to isolate each float, convert individually
-            // Or: rearrange with VPERM/XXPERMDI, then convert.
-            // The cleanest: use scalar XSCVSPDPN twice and combine.
-            //
-            // Actually, re-reading the ISA more carefully:
-            // XVCVSPDP: T[dw0] = convert_sp_to_dp(B[word0])   (high word of dw0)
-            //           T[dw1] = convert_sp_to_dp(B[word2])   (high word of dw1)
-            // Wait — "word0" means the ISA-level word at position 0, which on LE is the highest addressed word.
-            // On PPC64LE, ISA word 0 = big-endian word 0 = highest-order word (byte 0-3) = LE word 3.
-            // x86 float[1] is at x86 bits 32-63 = LE word 1 = ISA word 2. ✓ for dw1 position!
-            // x86 float[0] is at x86 bits 0-31  = LE word 0 = ISA word 3.
-            // So XVCVSPDP converts ISA word 0 (= x86 float at LE word 3 = x86 float[3]??)
-            //
-            // I'm going in circles. Let me just use the scalar approach — it's only 2 conversions:
+            // XVCVSPDP can't target the right word positions, so use scalar XSCVSPDPN twice
             {
                 d0 = fpu_get_scratch(dyn);
                 d1 = fpu_get_scratch(dyn);
-                // Extract x86 float[0] (ISA dw1 low 32 = LE word 0)
-                MFVSRLD(x4, VSXREG(v1)); // x4 = ISA dw1 (contains x86 float[1]:float[0])
-                SLDI(x5, x4, 32);        // x5 = float[0] in upper 32
+                // x4 = ISA dw1 = x86 [float[1] (bits 63:32) | float[0] (bits 31:0)]
+                MFVSRLD(x4, VSXREG(v1));
+                // Convert float[0]: shift to upper 32 for XSCVSPDPN
+                SLDI(x5, x4, 32);
                 MTVSRD(VSXREG(d0), x5);
                 XSCVSPDPN(VSXREG(d0), VSXREG(d0)); // d0 = (double)float[0]
-                // Extract x86 float[1] (ISA dw1 high 32 = LE word 1)
-                RLDICL(x5, x4, 0, 0); // x5 = x4 unchanged, float[1] already in upper 32
-                // Actually float[1] is the upper 32 bits of ISA dw1
-                // x4 = [float1_32bit | float0_32bit], float[1] is in bits 63:32
-                // Already in upper position? No. x4 is a 64-bit GPR. ISA dw1 as 64 bits:
-                // On LE: low 32 bits = x86 float[0], high 32 bits = x86 float[1]
-                // So float[1] is already at bits 63:32 of x4
-                RLDICR(x5, x4, 0, 31); // clear low 32 bits, keep high 32 (float[1] in bits 63:32)
+                // Convert float[1]: already in upper 32 bits of x4, clear low 32
+                RLDICR(x5, x4, 0, 31);
                 MTVSRD(VSXREG(d1), x5);
                 XSCVSPDPN(VSXREG(d1), VSXREG(d1)); // d1 = (double)float[1]
                 // Combine: ISA dw0 = x86 double[1] = d1, ISA dw1 = x86 double[0] = d0
-                // MFVSRD gets ISA dw0 (upper 64 bits of VSR)
-                MFVSRD(x4, VSXREG(d1)); // x4 = double[1] for ISA dw0
-                MFVSRD(x5, VSXREG(d0)); // x5 = double[0] for ISA dw1
+                MFVSRD(x4, VSXREG(d1));
+                MFVSRD(x5, VSXREG(d0));
                 MTVSRDD(VSXREG(v0), x4, x5);
             }
             break;
