@@ -100,7 +100,6 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             } else {
                 CALL_S(const_x64syscall, -1, 0);
             }
-            LOAD_XEMU_CALL();
             TABLE64(x3, addr); // expected return address
             BNE_MARK(xRIP, x3);
             LWZ(x1, offsetof(x64emu_t, quit), xEmu);
@@ -120,7 +119,6 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETIP(ip, x7);
             STORE_XEMU_CALL();
             CALL(const_native_ud, -1, 0, 0);
-            LOAD_XEMU_CALL();
             jump_to_epilog(dyn, 0, xRIP, ninst);
             *need_epilog = 0;
             *ok = 0;
@@ -1779,7 +1777,6 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 RLDIMI(xFlags, x3, F_SF, 63 - F_SF);
             }
             IFX (X_PF) emit_pf(dyn, ninst, gd, x3, x4);
-            IFX (X_ALL) SPILL_EFLAGS();
             break;
 
         case 0xB3:
@@ -1994,7 +1991,6 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             IFX (BOX64DRENV(dynarec_safeflags)) {
                 IFX (X_PF) emit_pf(dyn, ninst, gd, x2, x5);
             }
-            SPILL_EFLAGS();
             break;
         case 0xBD:
             INST_NAME("BSR Gd, Ed");
@@ -2027,7 +2023,6 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (BOX64DRENV(dynarec_safeflags)) {
                 IFX (X_PF) emit_pf(dyn, ninst, gd, x2, x5);
             }
-            SPILL_EFLAGS();
             break;
         case 0xBE:
             INST_NAME("MOVSX Gd, Eb");

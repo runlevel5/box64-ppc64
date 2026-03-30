@@ -574,11 +574,9 @@ void iret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, int is32bits,
     // Store CS segment
     STH(x2, offsetof(x64emu_t, segs[_CS]), xEmu);
     // clean EFLAGS
-    RESTORE_EFLAGS(x1);
     MOV32w(x1, 0x3E7FD7);   // also mask RF
     AND(xFlags, xFlags, x1);
     ORI(xFlags, xFlags, 0x2);
-    SPILL_EFLAGS();
     CHECK_DFNONE(0);
     // POP RSP
     if (is64bits) {
@@ -621,7 +619,6 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
     if (savereg == 0)
         savereg = x87pc;
     if (saveflags) {
-        RESTORE_EFLAGS(reg);
         STD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     }
     fpu_pushcache(dyn, ninst, reg, 0);
@@ -687,7 +684,6 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
     fpu_popcache(dyn, ninst, reg, 0);
     if (saveflags) {
         LD(xFlags, offsetof(x64emu_t, eflags), xEmu);
-        SPILL_EFLAGS();
     }
     if (savereg != x87pc && dyn->need_x87check)
         NATIVE_RESTORE_X87PC();

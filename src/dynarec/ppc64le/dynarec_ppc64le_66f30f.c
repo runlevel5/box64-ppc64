@@ -54,7 +54,6 @@ uintptr_t dynarec64_66F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
                 BNEZ_MARK(x2);
                 ORI(xFlags, xFlags, 1 << F_ZF);
                 MARK;
-                SPILL_EFLAGS();
             }
             break;
         case 0xBC:
@@ -90,7 +89,6 @@ uintptr_t dynarec64_66F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
                 BNE(2*4);
                 ORI(xFlags, xFlags, 1 << F_ZF);
             }
-            SPILL_EFLAGS();
             GWBACK;
             break;
         case 0xBD:
@@ -123,7 +121,6 @@ uintptr_t dynarec64_66F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip,
                 BNE(2*4);
                 ORI(xFlags, xFlags, 1 << F_ZF);
             }
-            SPILL_EFLAGS();
             GWBACK;
             break;
         default:

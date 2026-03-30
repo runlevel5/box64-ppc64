@@ -51,7 +51,6 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_CF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, 1 << F_CF);
                 CBZ_NEXT(x1);   // skip if CF==0 (condition not met)
                 FMR(v1, v2);    // CF==1 (below), copy STx to ST0
@@ -61,7 +60,6 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_ZF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, 1 << F_ZF);
                 CBZ_NEXT(x1);   // skip if ZF==0
                 FMR(v1, v2);    // ZF==1 (equal), copy STx to ST0
@@ -71,7 +69,6 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_CF | X_ZF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, (1 << F_CF) | (1 << F_ZF));
                 CBZ_NEXT(x1);   // skip if both CF==0 and ZF==0
                 FMR(v1, v2);    // CF==1 or ZF==1 (below or equal), copy STx to ST0
@@ -81,7 +78,6 @@ uintptr_t dynarec64_DA(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_PF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, 1 << F_PF);
                 CBZ_NEXT(x1);   // skip if PF==0
                 FMR(v1, v2);    // PF==1 (unordered), copy STx to ST0

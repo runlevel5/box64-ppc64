@@ -63,7 +63,6 @@ uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t i
                 BNE(8);
                 ORI(xFlags, xFlags, 1 << F_ZF);
             }
-            SPILL_EFLAGS();
             break;
         case 0xF3:
             nextop = F8;
@@ -95,7 +94,6 @@ uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t i
                         SLDI(x5, x5, F_SF);
                         OR(xFlags, xFlags, x5);
                     }
-                    SPILL_EFLAGS();
                     break;
                 case 2:
                     // BLSMSK: vd = ed ^ (ed - 1), CF = (ed == 0)
@@ -119,7 +117,6 @@ uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t i
                         SLDI(x5, x5, F_SF);
                         OR(xFlags, xFlags, x5);
                     }
-                    SPILL_EFLAGS();
                     break;
                 case 3:
                     // BLSI: vd = ed & (-ed), CF = (ed != 0)
@@ -149,7 +146,6 @@ uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t i
                         SLDI(x5, x5, F_SF);
                         OR(xFlags, xFlags, x5);
                     }
-                    SPILL_EFLAGS();
                     break;
                 default:
                     DEFAULT;
@@ -193,7 +189,6 @@ uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t i
                 SLDI(x5, x5, F_SF);
                 OR(xFlags, xFlags, x5);
             }
-            SPILL_EFLAGS();
             break;
         case 0xF7:
             // BEXTR: extract bit field from ed, start=vd[7:0], len=vd[15:8]
@@ -229,7 +224,6 @@ uintptr_t dynarec64_AVX_0F38(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t i
                 BNE(8);
                 ORI(xFlags, xFlags, 1 << F_ZF);
             }
-            SPILL_EFLAGS();
             break;
         default:
             DEFAULT;

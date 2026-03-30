@@ -250,7 +250,6 @@ void CreateJmpNext(void* addr, void* next);
     MV(x1, xRIP);                   \
     STORE_XEMU_CALL();              \
     MOV64x(x2, B);                  \
-    CALL(const_##A, -1, x1, x2);   \
-    LOAD_XEMU_CALL()
+    CALL(const_##A, -1, x1, x2)
 
 #endif //__DYNAREC_PPC64LE_PRIVATE_H_

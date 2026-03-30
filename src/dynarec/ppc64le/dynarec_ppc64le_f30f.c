@@ -861,7 +861,6 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 ZEROUP2(x4, ed);
                 ed = x4;
             }
-            RESTORE_EFLAGS(x6);
             CLEAR_FLAGS(x2);
             if (rex.w) {
                 CNTTZD(gd, ed);
@@ -885,7 +884,6 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             BNE(j64);
             ORI(xFlags, xFlags, 1 << F_CF);
             MARK2;
-            SPILL_EFLAGS();
             break;
         case 0xBD:
             INST_NAME("LZCNT Gd, Ed");
@@ -898,7 +896,6 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 ZEROUP2(x4, ed);
                 ed = x4;
             }
-            RESTORE_EFLAGS(x6);
             CLEAR_FLAGS(x2);
             if (rex.w) {
                 CNTLZD(gd, ed);
@@ -920,7 +917,6 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             BNE(j64);
             ORI(xFlags, xFlags, 1 << F_CF);
             MARK2;
-            SPILL_EFLAGS();
             break;
 
         case 0xC2:

@@ -1395,7 +1395,6 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 RLDIMI(xFlags, x3, F_SF, 63 - F_SF);
             }
             IFX (X_PF) emit_pf(dyn, ninst, gd, x3, x4);
-            SPILL_EFLAGS();
             break;
 
         case 0xB3:
@@ -1576,7 +1575,6 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             if (BOX64DRENV(dynarec_safeflags)) {
                 IFX (X_PF) emit_pf(dyn, ninst, gd, x1, x2);
             }
-            SPILL_EFLAGS();
             break;
         case 0xBD:
             INST_NAME("BSR Gw, Ew");
@@ -1601,7 +1599,6 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             if (BOX64DRENV(dynarec_safeflags)) {
                 IFX (X_PF) emit_pf(dyn, ninst, gd, x1, x2);
             }
-            SPILL_EFLAGS();
             break;
 
         case 0xBE:

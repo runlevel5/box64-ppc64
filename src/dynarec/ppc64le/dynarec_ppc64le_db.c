@@ -47,7 +47,6 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_CF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, 1 << F_CF);
                 CBNZ_NEXT(x1);
                 FMR(v1, v2); // F_CF==0, copy STx to ST0
@@ -57,7 +56,6 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_ZF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, 1 << F_ZF);
                 CBNZ_NEXT(x1);
                 FMR(v1, v2); // F_ZF==0, copy STx to ST0
@@ -67,7 +65,6 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_CF | X_ZF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, (1 << F_CF) | (1 << F_ZF));
                 CBNZ_NEXT(x1);
                 FMR(v1, v2); // F_CF==0 & F_ZF==0, copy STx to ST0
@@ -77,7 +74,6 @@ uintptr_t dynarec64_DB(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 READFLAGS(X_PF);
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_COMBINE(0, nextop & 7));
                 v2 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
-                RESTORE_EFLAGS(x5);
                 ANDId(x1, xFlags, 1 << F_PF);
                 CBNZ_NEXT(x1);
                 FMR(v1, v2); // F_PF==0, copy STx to ST0
