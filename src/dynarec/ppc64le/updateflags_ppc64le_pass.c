@@ -259,7 +259,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     LBZ(x2, offsetof(x64emu_t, op2), xEmu);
     LI(x3, 0);
     STW(x3, offsetof(x64emu_t, df), xEmu);
-    emit_add8(dyn, ninst, x1, x2, x3, x4);
+    emit_add8(dyn, ninst, x1, x2, x3, x4, x5, x6);
     MTLR(x7);
     BLR();
 
@@ -270,7 +270,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     LHZ(x2, offsetof(x64emu_t, op2), xEmu);
     LI(x3, 0);
     STW(x3, offsetof(x64emu_t, df), xEmu);
-    emit_add16(dyn, ninst, x1, x2, x3, x4, x5);
+    emit_add16(dyn, ninst, x1, x2, x3, x4, x5, x6);
     MTLR(x7);
     BLR();
 
@@ -282,7 +282,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     LI(x3, 0);
     STW(x3, offsetof(x64emu_t, df), xEmu);
     rex.w = 0;
-    emit_add32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    emit_add32(dyn, ninst, rex, x1, x2, x3, x4, x5, x6);
     MTLR(x7);
     BLR();
 
@@ -293,7 +293,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     LI(x3, 0);
     STW(x3, offsetof(x64emu_t, df), xEmu);
     rex.w = 1;
-    emit_add32(dyn, ninst, rex, x1, x2, x3, x4, x5);
+    emit_add32(dyn, ninst, rex, x1, x2, x3, x4, x5, x6);
     rex.w = 0;
     MTLR(x7);
     BLR();

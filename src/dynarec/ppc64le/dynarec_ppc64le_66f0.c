@@ -61,13 +61,13 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 MARKLOCK;
                 LHARX(x1, 0, wback);
                 ADD(x4, x1, x5);
-                RLDICL(x4, x4, 0, 48);  // zero-extend to 16 bits
+                RLDICL(x4, x4, 0, 48); // zero-extend to 16 bits
                 STHCXd(x4, 0, wback);
                 BNE_MARKLOCK_CR0;
                 LWSYNC();
                 IFXORNAT (X_ALL | X_PEND) {
                     BF_EXTRACT(x6, x1, 15, 0);
-                    emit_add16(dyn, ninst, x6, x5, x3, x4, x7);
+                    emit_add16(dyn, ninst, x6, x5, x3, x4, x7, x1);
                 }
             }
             break;
@@ -114,12 +114,12 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                         // For BTS Ew,Gw: bit offset = sign_extend_16(gd) with byte addressing
                         // Compute byte offset and bit within byte
-                        EXTSH(x4, gd);        // sign-extend 16-bit register value
-                        SRAWI(x3, x4, 3);     // byte offset = bit_offset >> 3 (arithmetic)
-                        ADD(x6, wback, x3);   // adjusted address
-                        ANDI(x5, x4, 7);      // bit within byte
+                        EXTSH(x4, gd);      // sign-extend 16-bit register value
+                        SRAWI(x3, x4, 3);   // byte offset = bit_offset >> 3 (arithmetic)
+                        ADD(x6, wback, x3); // adjusted address
+                        ANDI(x5, x4, 7);    // bit within byte
                         LI(x3, 1);
-                        SLW(x3, x3, x5);      // mask
+                        SLW(x3, x3, x5); // mask
                         // Use LBARX/STBCXd for byte-level atomic
                         LWSYNC();
                         MARKLOCK;
@@ -148,22 +148,22 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_NOFUSION);
                         nextop = F8;
                         GETGD;
-                        BF_EXTRACT(x6, xRAX, 15, 0);  // x6 = AX (expected)
+                        BF_EXTRACT(x6, xRAX, 15, 0); // x6 = AX (expected)
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                         // Halfword CMPXCHG using LHARX/STHCXd
                         LWSYNC();
                         MARKLOCK;
-                        LHARX(x1, 0, wback);          // x1 = current halfword
-                        BF_EXTRACT(x1, x1, 15, 0);    // zero-extend
+                        LHARX(x1, 0, wback);       // x1 = current halfword
+                        BF_EXTRACT(x1, x1, 15, 0); // zero-extend
                         CMPW(x1, x6);
-                        BNE(3*4);                      // skip store+branch if not equal
-                        STHCXd(gd, 0, wback);          // store Gw
+                        BNE(3 * 4);           // skip store+branch if not equal
+                        STHCXd(gd, 0, wback); // store Gw
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
                         // x1 = old value, x6 = expected (AX)
                         CMPW(x1, x6);
-                        BEQ(2*4);                      // skip if equal (AX unchanged)
-                        BF_INSERT(xRAX, x1, 15, 0);   // AX = old value
+                        BEQ(2 * 4);                 // skip if equal (AX unchanged)
+                        BF_INSERT(xRAX, x1, 15, 0); // AX = old value
                         IFXORNAT (X_ALL | X_PEND) {
                             emit_cmp16(dyn, ninst, x6, x1, x3, x4, x5, x7);
                         }
@@ -189,7 +189,7 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         ANDI(x5, x4, 7);
                         LI(x3, 1);
                         SLW(x3, x3, x5);
-                        NOT(x3, x3);           // inverted mask
+                        NOT(x3, x3); // inverted mask
                         LWSYNC();
                         MARKLOCK;
                         LBARX(x1, 0, x6);
@@ -230,9 +230,9 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                                 u8 &= (rex.w ? 0x3f : 0xf);
                                 // For 16-bit operand: bit offset is u8 & 0xf
                                 // Compute byte offset from base and bit within byte
-                                ADDI(x6, wback, u8 >> 3);   // byte address
+                                ADDI(x6, wback, u8 >> 3); // byte address
                                 LI(x3, 1);
-                                SLWI(x3, x3, u8 & 7);       // mask for bit within byte
+                                SLWI(x3, x3, u8 & 7); // mask for bit within byte
                                 LWSYNC();
                                 MARKLOCK;
                                 LBARX(x1, 0, x6);
@@ -303,13 +303,13 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         MARKLOCK;
                         LHARX(x1, 0, wback);
                         ADD(x4, x1, x5);
-                        RLDICL(x4, x4, 0, 48);  // zero-extend to 16 bits
+                        RLDICL(x4, x4, 0, 48); // zero-extend to 16 bits
                         STHCXd(x4, 0, wback);
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
                         IFXORNAT (X_ALL | X_PEND) {
                             BF_EXTRACT(x6, x1, 15, 0);
-                            emit_add16(dyn, ninst, x6, gd, x3, x4, x5);
+                            emit_add16(dyn, ninst, x6, gd, x3, x4, x5, x7);
                         }
                         // Gw = old value
                         BF_INSERT(gd, x1, 15, 0);
@@ -352,7 +352,7 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         LWSYNC();
                         IFXORNAT (X_ALL | X_PEND) {
                             BF_EXTRACT(x6, x1, 15, 0);
-                            emit_add16(dyn, ninst, x6, x5, x3, x4, x7);
+                            emit_add16(dyn, ninst, x6, x5, x3, x4, x7, x1);
                         }
                     }
                     break;

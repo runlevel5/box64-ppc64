@@ -1825,11 +1825,11 @@ void emit_adc16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s
 void emit_adc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5, int s6);
 void emit_adc8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5);
 void emit_adc8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s3, int s4, int s5, int s6);
-void emit_add16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5);
-void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5);
-void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s2, int s3, int s4, int s5);
-void emit_add8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4);
-void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, int s3, int s4);
+void emit_add16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5, int s6);
+void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4, int s5, int s6);
+void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s2, int s3, int s4, int s5, int s6);
+void emit_add8(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4, int s5, int s6);
+void emit_add8c(dynarec_ppc64le_t* dyn, int ninst, int s1, int32_t c, int s2, int s3, int s4, int s5, int s6);
 void emit_and16(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3, int s4);
 void emit_and32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, int s3, int s4);
 void emit_and32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c, int s3, int s4);

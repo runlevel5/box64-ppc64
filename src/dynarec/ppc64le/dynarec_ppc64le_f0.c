@@ -61,7 +61,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // PPC64LE has byte-level LBARX/STBCXd
                 LOCK_8_OP(ADD(x4, x1, gd), x1, wback, x3, x4, x5, x6);
                 IFXORNAT (X_ALL | X_PEND) {
-                    emit_add8(dyn, ninst, x1, gd, x3, x4);
+                    emit_add8(dyn, ninst, x1, gd, x3, x4, x5, x6);
                 }
             }
             break;
@@ -123,7 +123,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     MARK3;
                 }
                 IFXORNAT (X_ALL | X_PEND) {
-                    emit_add32(dyn, ninst, rex, x1, gd, x3, x4, x5);
+                    emit_add32(dyn, ninst, rex, x1, gd, x3, x4, x5, x6);
                 }
             }
             break;
@@ -517,7 +517,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         // x1 = old value; store old value back to Gb
                         BF_INSERT(gb1, x1, gb2 + 7, gb2);
                         IFXORNAT (X_ALL | X_PEND) {
-                            emit_add8(dyn, ninst, x1, gd, x3, x4);
+                            emit_add8(dyn, ninst, x1, gd, x3, x4, x5, x6);
                         }
                     }
                     break;
@@ -576,7 +576,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         // Gd = old value
                         MVxw(gd, x1);
                         IFXORNAT (X_ALL | X_PEND) {
-                            emit_add32(dyn, ninst, rex, x1, gd, x3, x4, x5);
+                            emit_add32(dyn, ninst, rex, x1, gd, x3, x4, x5, x6);
                         }
                     }
                     break;
@@ -741,7 +741,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     MARK3;
                 }
                 IFXORNAT (X_ALL | X_PEND) {
-                    emit_add32(dyn, ninst, rex, x1, x7, x3, x4, x6);
+                    emit_add32(dyn, ninst, rex, x1, x7, x3, x4, x6, x5);
                 }
             }
             break;
@@ -1103,7 +1103,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             MARK3;
                         }
                         IFXORNAT (X_ALL | X_PEND) {
-                            emit_add32c(dyn, ninst, rex, x1, i64, x3, x4, x5, x6);
+                            emit_add32c(dyn, ninst, rex, x1, i64, x3, x4, x5, x6, x7);
                         }
                     }
                     break;
@@ -1235,7 +1235,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             MARK3;
                         }
                         IFXORNAT (X_ALL | X_PEND) {
-                            emit_add32(dyn, ninst, rex, x1, x7, x3, x4, x5);
+                            emit_add32(dyn, ninst, rex, x1, x7, x3, x4, x5, x6);
                         }
                     }
                     break;

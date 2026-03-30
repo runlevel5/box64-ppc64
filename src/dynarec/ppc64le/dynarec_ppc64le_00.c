@@ -64,7 +64,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGBEB(x1, x2, 0);
-            emit_add8(dyn, ninst, ed, gd, x4, x5);
+            emit_add8(dyn, ninst, ed, gd, x4, x5, x3, x6);
             EBBACK();
             break;
         case 0x01:
@@ -73,7 +73,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGD;
             GETED(0);
-            emit_add32(dyn, ninst, rex, ed, gd, x3, x4, x5);
+            emit_add32(dyn, ninst, rex, ed, gd, x3, x4, x5, x6);
             WBACK;
             break;
         case 0x02:
@@ -81,7 +81,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGBEB(x1, x2, 0);
-            emit_add8(dyn, ninst, gd, ed, x4, x5);
+            emit_add8(dyn, ninst, gd, ed, x4, x5, x3, x6);
             GBBACK();
             break;
         case 0x03:
@@ -90,21 +90,21 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             nextop = F8;
             GETGD;
             GETED(0);
-            emit_add32(dyn, ninst, rex, gd, ed, x3, x4, x5);
+            emit_add32(dyn, ninst, rex, gd, ed, x3, x4, x5, x6);
             break;
         case 0x04:
             INST_NAME("ADD AL, Ib");
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             u8 = F8;
             ANDI(x1, xRAX, 0xff);
-            emit_add8c(dyn, ninst, x1, u8, x3, x4, x5);
+            emit_add8c(dyn, ninst, x1, u8, x3, x4, x5, x6, x7);
             BF_INSERT(xRAX, x1, 7, 0);
             break;
         case 0x05:
             INST_NAME("ADD EAX, Id");
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             i64 = F32S;
-            emit_add32c(dyn, ninst, rex, xRAX, i64, x3, x4, x5, x6);
+            emit_add32c(dyn, ninst, rex, xRAX, i64, x3, x4, x5, x6, x7);
             break;
         case 0x06:
             if (rex.is32bits) {
@@ -1062,7 +1062,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                     GETEB(x1, 1);
                     u8 = F8;
-                    emit_add8c(dyn, ninst, x1, u8, x2, x4, x5);
+                    emit_add8c(dyn, ninst, x1, u8, x2, x4, x5, x3, x6);
                     EBBACK();
                     break;
                 case 1: // OR
@@ -1147,7 +1147,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         i64 = F32S;
                     else
                         i64 = F8S;
-                    emit_add32c(dyn, ninst, rex, ed, i64, x3, x4, x5, x6);
+                    emit_add32c(dyn, ninst, rex, ed, i64, x3, x4, x5, x6, x7);
                     WBACK;
                     break;
                 case 1: // OR

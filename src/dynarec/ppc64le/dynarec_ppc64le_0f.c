@@ -74,7 +74,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     case 0xD0:
                         INST_NAME("XGETBV");
                         BEQZ_MARK(xRCX);
-                        TRAP();  // illegal if ECX != 0
+                        TRAP(); // illegal if ECX != 0
                         MARK;
                         MOV32w(xRAX, 0b111);
                         MOV32w(xRDX, 0);
@@ -95,7 +95,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SMEND();
             GETIP(addr, x7);
             STORE_XEMU_CALL();
-            if(!box64_wine || FindElfAddress(my_context, ip)) {
+            if (!box64_wine || FindElfAddress(my_context, ip)) {
                 CALL_S(const_x64syscall_linux, -1, 0);
             } else {
                 CALL_S(const_x64syscall, -1, 0);
@@ -131,7 +131,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 case 0:
                     INST_NAME("PREFETCH");
                     addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, NO_DISP, 0);
-                    NOP();  // prefetch hint, treat as NOP on PPC64LE
+                    NOP(); // prefetch hint, treat as NOP on PPC64LE
                     break;
                 case 1:
                     INST_NAME("PREFETCHW");
@@ -162,7 +162,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     case 1:
                         INST_NAME("PREFETCHT0 Ed");
                         addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, NO_DISP, 0);
-                        NOP();  // prefetch hint
+                        NOP(); // prefetch hint
                         break;
                     case 2:
                         INST_NAME("PREFETCHT1 Ed");
@@ -230,7 +230,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // Copy high qword of Ex to low qword of Gx
                 // XXPERMDI with DM=2: T[0:63]=A[64:127], T[64:127]=B[64:127] — but we want Ex.high→Gx.low
                 // Actually: ISA dw0 of v1 → ISA dw1 of v0 (x86 low = ISA dw1)
-                XXPERMDI(VSXREG(v0), VSXREG(v1), VSXREG(v0), 0b00); // v0[dw0]=v1[dw0], v0[dw1]=v0[dw0] → gives us v1.high(x86) in v0.low(x86) and v0.high(x86) preserved... 
+                XXPERMDI(VSXREG(v0), VSXREG(v1), VSXREG(v0), 0b00); // v0[dw0]=v1[dw0], v0[dw1]=v0[dw0] → gives us v1.high(x86) in v0.low(x86) and v0.high(x86) preserved...
                 // Wait, let me think more carefully about LE element ordering.
                 // x86 high qword = ISA dw0 on PPC64LE
                 // x86 low qword = ISA dw1 on PPC64LE
@@ -248,7 +248,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // Load 64-bit into x86 low qword (ISA dw1)
                 LD(x4, fixedaddress, ed);
                 // Replace ISA dw1 of v0 with loaded value, keep ISA dw0
-                MFVSRD(x5, VSXREG(v0));  // x5 = ISA dw0 (x86 high)
+                MFVSRD(x5, VSXREG(v0));      // x5 = ISA dw0 (x86 high)
                 MTVSRDD(VSXREG(v0), x5, x4); // dw0=x5(high preserved), dw1=x4(new low)
             }
             break;
@@ -260,8 +260,8 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
                 // Copy low qword of Gx to low qword of Ex
                 // x86 low = ISA dw1
-                MFVSRLD(x4, VSXREG(v0));   // x4 = ISA dw1 = x86 low of Gx
-                MFVSRD(x5, VSXREG(v1));    // x5 = ISA dw0 = x86 high of Ex (preserve)
+                MFVSRLD(x4, VSXREG(v0)); // x4 = ISA dw1 = x86 low of Gx
+                MFVSRD(x5, VSXREG(v1));  // x5 = ISA dw0 = x86 high of Ex (preserve)
                 MTVSRDD(VSXREG(v1), x5, x4);
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DS_DISP, 0);
@@ -307,7 +307,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // Load 64-bit into x86 high qword (ISA dw0)
                 LD(x4, fixedaddress, ed);
                 // Replace ISA dw0 of v0 with loaded value, keep ISA dw1
-                MFVSRLD(x5, VSXREG(v0));  // x5 = ISA dw1 (x86 low, preserve)
+                MFVSRLD(x5, VSXREG(v0));     // x5 = ISA dw1 (x86 low, preserve)
                 MTVSRDD(VSXREG(v0), x4, x5); // dw0=x4(new high), dw1=x5(low preserved)
             }
             break;
@@ -319,14 +319,14 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
                 // Copy high qword of Gx to low qword of Ex
                 // x86 high = ISA dw0
-                MFVSRD(x4, VSXREG(v0));    // x4 = ISA dw0 = x86 high of Gx
-                MFVSRLD(x5, VSXREG(v1));   // x5 = ISA dw1 = x86 low of Ex... wait, we want low of Ex preserved?
+                MFVSRD(x4, VSXREG(v0));  // x4 = ISA dw0 = x86 high of Gx
+                MFVSRLD(x5, VSXREG(v1)); // x5 = ISA dw1 = x86 low of Ex... wait, we want low of Ex preserved?
                 // MOVHPS to reg: copies Gx.high to Ex.low, Ex.high unchanged
                 // Actually MOVHPS Ex, Gx: store Gx[127:64] to memory (not used for reg-reg typically)
                 // Intel says MOVHPS r/m only accepts memory operand, so MODREG shouldn't happen
                 // But if it does: ISA dw0 of Gx → ISA dw1 of Ex, ISA dw0 of Ex unchanged
-                MFVSRD(x4, VSXREG(v0));    // x4 = ISA dw0 = x86 high of Gx
-                MFVSRD(x5, VSXREG(v1));    // x5 = ISA dw0 = x86 high of Ex (preserve)
+                MFVSRD(x4, VSXREG(v0));      // x4 = ISA dw0 = x86 high of Gx
+                MFVSRD(x5, VSXREG(v1));      // x5 = ISA dw0 = x86 high of Ex (preserve)
                 MTVSRDD(VSXREG(v1), x5, x4); // dw0=high preserved, dw1=Gx.high
             } else {
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DS_DISP, 0);
@@ -399,10 +399,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // v0 is SSE VR: x86 scalar float is in ISA word 3 (low 32 bits of ISA dw1).
             // Extract, place in ISA dw0 upper 32 bits, convert SP→DP for XSCMPUDP.
             d0 = fpu_get_scratch(dyn);
-            MFVSRLD(x4, VSXREG(v0));       // x4 = ISA dw1 (x86 low qword)
-            SLDI(x4, x4, 32);              // shift float to upper 32 bits (ISA word 0 position)
-            MTVSRD(VSXREG(d0), x4);         // move to VSR ISA dw0
-            XSCVSPDPN(VSXREG(d0), VSXREG(d0));  // convert single → double
+            MFVSRLD(x4, VSXREG(v0));           // x4 = ISA dw1 (x86 low qword)
+            SLDI(x4, x4, 32);                  // shift float to upper 32 bits (ISA word 0 position)
+            MTVSRD(VSXREG(d0), x4);            // move to VSR ISA dw0
+            XSCVSPDPN(VSXREG(d0), VSXREG(d0)); // convert single → double
             // Get Ex operand
             if (MODREG) {
                 v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 0);
@@ -427,16 +427,16 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             MFCR(x1);
             RLWINM(x1, x1, 4, 28, 31);
             // CF = LT|UN
-            RLWINM(x2, x1, 0, 31, 31);   // UN
-            RLWINM(x3, x1, 29, 31, 31);  // LT
+            RLWINM(x2, x1, 0, 31, 31);  // UN
+            RLWINM(x3, x1, 29, 31, 31); // LT
             OR(x2, x2, x3);
             // PF = UN
             RLWINM(x3, x1, 0, 31, 31);
             SLWI(x3, x3, F_PF);
             OR(x2, x2, x3);
             // ZF = EQ|UN
-            RLWINM(x3, x1, 31, 31, 31);  // EQ
-            RLWINM(x4, x1, 0, 31, 31);   // UN
+            RLWINM(x3, x1, 31, 31, 31); // EQ
+            RLWINM(x4, x1, 0, 31, 31);  // UN
             OR(x3, x3, x4);
             SLWI(x3, x3, F_ZF);
             OR(x2, x2, x3);
@@ -454,28 +454,28 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     // PSHUFB MMX: for each byte i, if bit 7 of Em[i] set, result[i]=0
                     //             else result[i] = Gm[Em[i] & 0x7]
                     // Use GPR approach: extract 64-bit values, process each byte
-                    MFVSRLD(x4, VSXREG(v0));   // Gm data (64-bit) from ISA dw1
-                    MFVSRLD(x5, VSXREG(v1));   // Em indices (64-bit) from ISA dw1
+                    MFVSRLD(x4, VSXREG(v0)); // Gm data (64-bit) from ISA dw1
+                    MFVSRLD(x5, VSXREG(v1)); // Em indices (64-bit) from ISA dw1
                     {
-                        LI(x6, 0);  // result accumulator
+                        LI(x6, 0); // result accumulator
                         for (int i = 0; i < 8; i++) {
                             // Extract index byte i from Em
                             if (i == 0) {
                                 ANDI(x3, x5, 0xFF);
                             } else {
-                                RLDICL(x3, x5, 64 - i * 8, 56);  // extract byte i
+                                RLDICL(x3, x5, 64 - i * 8, 56); // extract byte i
                             }
                             // index = x3 & 7, but first save bit 7 check
-                            ANDI(x7, x3, 0x80);   // sets CR0: EQ if bit7 not set
+                            ANDI(x7, x3, 0x80); // sets CR0: EQ if bit7 not set
                             ANDI(x3, x3, 7);
                             // Extract Gm[index]: shift Gm right by (index*8), take low byte
-                            SLWI(x3, x3, 3);      // index * 8
-                            SRD(x3, x4, x3);      // shift right
-                            ANDI(x3, x3, 0xFF);   // isolate byte (sets CR0, but we need the previous CR0)
+                            SLWI(x3, x3, 3);    // index * 8
+                            SRD(x3, x4, x3);    // shift right
+                            ANDI(x3, x3, 0xFF); // isolate byte (sets CR0, but we need the previous CR0)
                             // Problem: ANDI on x3 overwrites CR0. Need to save CR0 from bit7 check.
                             // Solution: use CMPLWI/ISEL with x7 directly
-                            CMPLDI(x7, 0);         // re-check: x7==0 means bit7 not set -> EQ
-                            ISEL(x3, x3, 0, 2);   // CR0.EQ: if bit7 not set pick x3, else 0
+                            CMPLDI(x7, 0);      // re-check: x7==0 means bit7 not set -> EQ
+                            ISEL(x3, x3, 0, 2); // CR0.EQ: if bit7 not set pick x3, else 0
                             // Insert into result at byte position i
                             if (i > 0) {
                                 SLDI(x3, x3, i * 8);
@@ -605,21 +605,21 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // Extract sign bits of 4 floats
             // x86: bit0 = sign of float[0] (ISA word 3), bit1 = sign of float[1] (ISA word 2),
             //       bit2 = sign of float[2] (ISA word 1), bit3 = sign of float[3] (ISA word 0)
-            MFVSRLD(x4, VSXREG(q0));    // x4 = ISA dw1 (x86 low: float[0] in low 32, float[1] in high 32)
-            MFVSRD(x5, VSXREG(q0));     // x5 = ISA dw0 (x86 high: float[2] in low 32, float[3] in high 32)
+            MFVSRLD(x4, VSXREG(q0)); // x4 = ISA dw1 (x86 low: float[0] in low 32, float[1] in high 32)
+            MFVSRD(x5, VSXREG(q0));  // x5 = ISA dw0 (x86 high: float[2] in low 32, float[3] in high 32)
             // float[0] sign = bit 31 of x4
-            RLWINM(x1, x4, 1, 31, 31);  // x1 = bit0
+            RLWINM(x1, x4, 1, 31, 31); // x1 = bit0
             // float[1] sign = bit 63 of x4
             SRDI(x2, x4, 62);
-            ANDI(x2, x2, 0x2);          // x2 = bit1
+            ANDI(x2, x2, 0x2); // x2 = bit1
             OR(x1, x1, x2);
             // float[2] sign = bit 31 of x5
             RLWINM(x2, x5, 1, 31, 31);
-            SLWI(x2, x2, 2);            // x2 = bit2
+            SLWI(x2, x2, 2); // x2 = bit2
             OR(x1, x1, x2);
             // float[3] sign = bit 63 of x5
             SRDI(x2, x5, 60);
-            ANDI(x2, x2, 0x8);          // x2 = bit3
+            ANDI(x2, x2, 0x8); // x2 = bit3
             OR(gd, x1, x2);
             break;
         case 0x51:
@@ -630,15 +630,15 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (!BOX64ENV(dynarec_fastnan)) {
                 q0 = fpu_get_scratch(dyn);
                 d0 = fpu_get_scratch(dyn);
-                XVCMPEQSP(VSXREG(q0), VSXREG(v1), VSXREG(v1));  // q0 = -1 where input NOT NaN
+                XVCMPEQSP(VSXREG(q0), VSXREG(v1), VSXREG(v1)); // q0 = -1 where input NOT NaN
             }
             XVSQRTSP(VSXREG(v0), VSXREG(v1));
             if (!BOX64ENV(dynarec_fastnan)) {
-                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // d0 = -1 where result NOT NaN
-                XXLANDC(VSXREG(d0), VSXREG(q0), VSXREG(d0));    // d0 = input-ordered AND result-NaN (new NaNs)
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0)); // d0 = -1 where result NOT NaN
+                XXLANDC(VSXREG(d0), VSXREG(q0), VSXREG(d0));   // d0 = input-ordered AND result-NaN (new NaNs)
                 XXSPLTIB(VSXREG(q0), 31);
-                VSLW(VRREG(d0), VRREG(d0), VRREG(q0));          // d0 = 0x80000000 in new NaN lanes
-                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));      // OR sign bit into result
+                VSLW(VRREG(d0), VRREG(d0), VRREG(q0));     // d0 = 0x80000000 in new NaN lanes
+                XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0)); // OR sign bit into result
             }
             break;
         case 0x52:
@@ -701,14 +701,14 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (!BOX64ENV(dynarec_fastnan)) {
                 q1 = fpu_get_scratch(dyn);
                 d0 = fpu_get_scratch(dyn);
-                XVCMPEQSP(VSXREG(q1), VSXREG(v0), VSXREG(v0));  // -1 where Gx not NaN
-                XVCMPEQSP(VSXREG(d0), VSXREG(q0), VSXREG(q0));  // -1 where Ex not NaN
-                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));      // -1 where BOTH not NaN
+                XVCMPEQSP(VSXREG(q1), VSXREG(v0), VSXREG(v0)); // -1 where Gx not NaN
+                XVCMPEQSP(VSXREG(d0), VSXREG(q0), VSXREG(q0)); // -1 where Ex not NaN
+                XXLAND(VSXREG(q1), VSXREG(q1), VSXREG(d0));    // -1 where BOTH not NaN
             }
             XVADDSP(VSXREG(v0), VSXREG(v0), VSXREG(q0));
             if (!BOX64ENV(dynarec_fastnan)) {
-                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0));  // -1 where result not NaN
-                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));     // both-ordered AND result-NaN
+                XVCMPEQSP(VSXREG(d0), VSXREG(v0), VSXREG(v0)); // -1 where result not NaN
+                XXLANDC(VSXREG(d0), VSXREG(q1), VSXREG(d0));   // both-ordered AND result-NaN
                 XXSPLTIB(VSXREG(q1), 31);
                 VSLW(VRREG(d0), VRREG(d0), VRREG(q1));
                 XXLOR(VSXREG(v0), VSXREG(v0), VSXREG(d0));
@@ -760,7 +760,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // Simpler: XXPERMDI(tmp, v1, v1, 0b10): tmp[dw0]=v1[dw0], tmp[dw1]=v1[dw0]... no
             // XXPERMDI(tmp, v1, v1, 0b11): tmp[dw0]=v1[dw1], tmp[dw1]=v1[dw1]
             // so word0=word2, word1=word3, word2=word2, word3=word3
-            // XVCVSPDP converts word0(=word2=x86 float[1]) → dw0(=x86 high double), 
+            // XVCVSPDP converts word0(=word2=x86 float[1]) → dw0(=x86 high double),
             //                   word2(=word2=x86 float[1]) → dw1(=x86 low double)
             // Wrong — we get float[1] in both positions.
             // Need: word0 = ISA word 3 (x86 float[0]), word2 = ISA word 2 (x86 float[1])
@@ -798,7 +798,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // OK. Let's just use XXSPLTW to set up words individually, or use scalar conversion.
             // Actually the simplest: just use XXPERMDI to get dw1 into both halves and convert:
             // XXPERMDI(tmp, v1, v1, 0b11): tmp[dw0]=v1[dw1], tmp[dw1]=v1[dw1]
-            // words: w0=v1.w2, w1=v1.w3, w2=v1.w2, w3=v1.w3  
+            // words: w0=v1.w2, w1=v1.w3, w2=v1.w2, w3=v1.w3
             // XVCVSPDP: dw0=convert(w0=v1.w2=x86 float[1]), dw1=convert(w2=v1.w2=x86 float[1])
             // Both are float[1]... wrong.
             //
@@ -830,24 +830,24 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 d0 = fpu_get_scratch(dyn);
                 d1 = fpu_get_scratch(dyn);
                 // Extract x86 float[0] (ISA dw1 low 32 = LE word 0)
-                MFVSRLD(x4, VSXREG(v1));       // x4 = ISA dw1 (contains x86 float[1]:float[0])
-                SLDI(x5, x4, 32);              // x5 = float[0] in upper 32
+                MFVSRLD(x4, VSXREG(v1)); // x4 = ISA dw1 (contains x86 float[1]:float[0])
+                SLDI(x5, x4, 32);        // x5 = float[0] in upper 32
                 MTVSRD(VSXREG(d0), x5);
-                XSCVSPDPN(VSXREG(d0), VSXREG(d0));  // d0 = (double)float[0]
+                XSCVSPDPN(VSXREG(d0), VSXREG(d0)); // d0 = (double)float[0]
                 // Extract x86 float[1] (ISA dw1 high 32 = LE word 1)
-                RLDICL(x5, x4, 0, 0);          // x5 = x4 unchanged, float[1] already in upper 32
+                RLDICL(x5, x4, 0, 0); // x5 = x4 unchanged, float[1] already in upper 32
                 // Actually float[1] is the upper 32 bits of ISA dw1
                 // x4 = [float1_32bit | float0_32bit], float[1] is in bits 63:32
                 // Already in upper position? No. x4 is a 64-bit GPR. ISA dw1 as 64 bits:
                 // On LE: low 32 bits = x86 float[0], high 32 bits = x86 float[1]
                 // So float[1] is already at bits 63:32 of x4
-                RLDICR(x5, x4, 0, 31);         // clear low 32 bits, keep high 32 (float[1] in bits 63:32)
+                RLDICR(x5, x4, 0, 31); // clear low 32 bits, keep high 32 (float[1] in bits 63:32)
                 MTVSRD(VSXREG(d1), x5);
-                XSCVSPDPN(VSXREG(d1), VSXREG(d1));  // d1 = (double)float[1]
+                XSCVSPDPN(VSXREG(d1), VSXREG(d1)); // d1 = (double)float[1]
                 // Combine: ISA dw0 = x86 double[1] = d1, ISA dw1 = x86 double[0] = d0
                 // MFVSRD gets ISA dw0 (upper 64 bits of VSR)
-                MFVSRD(x4, VSXREG(d1));         // x4 = double[1] for ISA dw0
-                MFVSRD(x5, VSXREG(d0));         // x5 = double[0] for ISA dw1
+                MFVSRD(x4, VSXREG(d1)); // x4 = double[1] for ISA dw0
+                MFVSRD(x5, VSXREG(d0)); // x5 = double[0] for ISA dw1
                 MTVSRDD(VSXREG(v0), x4, x5);
             }
             break;
@@ -929,35 +929,35 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XXSEL(VSXREG(v0), VSXREG(v1), VSXREG(v0), VSXREG(q0));
             break;
 
-#define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                          \
-    READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                \
-    if (!dyn->insts[ninst].nat_flags_fusion) {                                               \
-        GETFLAGS;                                                                            \
-    }                                                                                        \
-    nextop = F8;                                                                             \
-    GETGD;                                                                                   \
-    if (MODREG) {                                                                            \
-        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                            \
-        if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            /* Branchless: CMPD_ZR(4) + ISEL(4) = 8 bytes */                                 \
-            NATIVEMV(NATYES, gd, ed);                                                        \
-        } else {                                                                             \
-            B##NO##_MARK2(tmp1);                                                             \
-            MR(gd, ed);                                                                      \
-            MARK2;                                                                           \
-        }                                                                                    \
-        if (!rex.w) ZEROUP(gd);                                                              \
-    } else {                                                                                 \
+#define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                                     \
+    READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                           \
+    if (!dyn->insts[ninst].nat_flags_fusion) {                                                         \
+        GETFLAGS;                                                                                      \
+    }                                                                                                  \
+    nextop = F8;                                                                                       \
+    GETGD;                                                                                             \
+    if (MODREG) {                                                                                      \
+        ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                      \
+        if (dyn->insts[ninst].nat_flags_fusion) {                                                      \
+            /* Branchless: CMPD_ZR(4) + ISEL(4) = 8 bytes */                                           \
+            NATIVEMV(NATYES, gd, ed);                                                                  \
+        } else {                                                                                       \
+            B##NO##_MARK2(tmp1);                                                                       \
+            MR(gd, ed);                                                                                \
+            MARK2;                                                                                     \
+        }                                                                                              \
+        if (!rex.w) ZEROUP(gd);                                                                        \
+    } else {                                                                                           \
         addr = geted(dyn, addr, ninst, nextop, &ed, tmp2, tmp3, &fixedaddress, rex, NULL, DS_DISP, 0); \
-        if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            /* CMPD_ZR(4) + BC(4) + LDxw(4) → past load; ZEROUP unconditional */              \
-            NATIVEJUMP(NATNO, 12);                                                           \
-        } else {                                                                             \
-            B##NO##_MARK2(tmp1);                                                             \
-        }                                                                                    \
-        LDxw(gd, ed, fixedaddress);                                                          \
-        MARK2;                                                                               \
-        if (!rex.w) ZEROUP(gd);                                                              \
+        if (dyn->insts[ninst].nat_flags_fusion) {                                                      \
+            /* CMPD_ZR(4) + BC(4) + LDxw(4) → past load; ZEROUP unconditional */                       \
+            NATIVEJUMP(NATNO, 12);                                                                     \
+        } else {                                                                                       \
+            B##NO##_MARK2(tmp1);                                                                       \
+        }                                                                                              \
+        LDxw(gd, ed, fixedaddress);                                                                    \
+        MARK2;                                                                                         \
+        if (!rex.w) ZEROUP(gd);                                                                        \
     }
 
             GOCOND(0x40, "CMOV", "Gd, Ed");
@@ -981,69 +981,69 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
 #define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                          \
     READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                \
-    i32_ = F32S;                                                                             \
-    if (rex.is32bits)                                                                        \
-        j64 = (uint32_t)(addr + i32_);                                                       \
-    else                                                                                     \
-        j64 = addr + i32_;                                                                   \
-    JUMP(j64, 1);                                                                            \
-    if (!dyn->insts[ninst].nat_flags_fusion) {                                               \
-        GETFLAGS;                                                                            \
-    }                                                                                        \
-    if (dyn->insts[ninst].x64.jmp_insts == -1 || CHECK_CACHE()) {                            \
-        /* out of the block */                                                               \
-        i32 = dyn->insts[ninst].epilog - (dyn->native_size);                                 \
-        if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            NATIVEJUMP_safe(NATNO, i32);                                                     \
-        } else {                                                                             \
-            B##NO##_safe(tmp1, i32);                                                         \
-        }                                                                                    \
-        if (dyn->insts[ninst].x64.jmp_insts == -1) {                                         \
-            if (!(dyn->insts[ninst].x64.barrier & BARRIER_FLOAT))                            \
-                fpu_purgecache(dyn, ninst, 1, tmp1, tmp2, tmp3);                             \
-            jump_to_next(dyn, j64, 0, ninst, rex.is32bits);                                  \
-        } else {                                                                             \
-            CacheTransform(dyn, ninst, cacheupd, tmp1, tmp2, tmp3);                          \
-            i32 = dyn->insts[dyn->insts[ninst].x64.jmp_insts].address - (dyn->native_size);  \
-            B(i32);                                                                          \
-        }                                                                                    \
-    } else {                                                                                 \
-        /* inside the block */                                                               \
-        i32 = dyn->insts[dyn->insts[ninst].x64.jmp_insts].address - (dyn->native_size);      \
-        if (dyn->insts[ninst].nat_flags_fusion) {                                            \
-            NATIVEJUMP_safe(NATYES, i32);                                                    \
-        } else {                                                                             \
-            B##YES##_safe(tmp1, i32);                                                        \
-        }                                                                                    \
+    i32_ = F32S;                                                                            \
+    if (rex.is32bits)                                                                       \
+        j64 = (uint32_t)(addr + i32_);                                                      \
+    else                                                                                    \
+        j64 = addr + i32_;                                                                  \
+    JUMP(j64, 1);                                                                           \
+    if (!dyn->insts[ninst].nat_flags_fusion) {                                              \
+        GETFLAGS;                                                                           \
+    }                                                                                       \
+    if (dyn->insts[ninst].x64.jmp_insts == -1 || CHECK_CACHE()) {                           \
+        /* out of the block */                                                              \
+        i32 = dyn->insts[ninst].epilog - (dyn->native_size);                                \
+        if (dyn->insts[ninst].nat_flags_fusion) {                                           \
+            NATIVEJUMP_safe(NATNO, i32);                                                    \
+        } else {                                                                            \
+            B##NO##_safe(tmp1, i32);                                                        \
+        }                                                                                   \
+        if (dyn->insts[ninst].x64.jmp_insts == -1) {                                        \
+            if (!(dyn->insts[ninst].x64.barrier & BARRIER_FLOAT))                           \
+                fpu_purgecache(dyn, ninst, 1, tmp1, tmp2, tmp3);                            \
+            jump_to_next(dyn, j64, 0, ninst, rex.is32bits);                                 \
+        } else {                                                                            \
+            CacheTransform(dyn, ninst, cacheupd, tmp1, tmp2, tmp3);                         \
+            i32 = dyn->insts[dyn->insts[ninst].x64.jmp_insts].address - (dyn->native_size); \
+            B(i32);                                                                         \
+        }                                                                                   \
+    } else {                                                                                \
+        /* inside the block */                                                              \
+        i32 = dyn->insts[dyn->insts[ninst].x64.jmp_insts].address - (dyn->native_size);     \
+        if (dyn->insts[ninst].nat_flags_fusion) {                                           \
+            NATIVEJUMP_safe(NATYES, i32);                                                   \
+        } else {                                                                            \
+            B##YES##_safe(tmp1, i32);                                                       \
+        }                                                                                   \
     }
 
             GOCOND(0x80, "J", "Id");
 
 #undef GO
 
-#define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                          \
-    READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                \
-    nextop = F8;                                                                             \
-    if (dyn->insts[ninst].nat_flags_fusion) {                                                \
-        NATIVESET(NATYES, tmp3);                                                             \
-    } else {                                                                                 \
-        GETFLAGS;                                                                            \
-        S##YES(tmp3, tmp1);                                                                  \
-    }                                                                                        \
-    if (MODREG) {                                                                            \
-        if (rex.rex) {                                                                       \
-            eb1 = TO_NAT((nextop & 7) + (rex.b << 3));                                       \
-            eb2 = 0;                                                                         \
-        } else {                                                                             \
-            ed = (nextop & 7);                                                               \
-            eb2 = (ed >> 2) * 8;                                                             \
-            eb1 = TO_NAT(ed & 3);                                                            \
-        }                                                                                    \
-        RLDIMI(eb1, tmp3, eb2, 56 - eb2);                                                    \
-    } else {                                                                                 \
+#define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                                     \
+    READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                           \
+    nextop = F8;                                                                                       \
+    if (dyn->insts[ninst].nat_flags_fusion) {                                                          \
+        NATIVESET(NATYES, tmp3);                                                                       \
+    } else {                                                                                           \
+        GETFLAGS;                                                                                      \
+        S##YES(tmp3, tmp1);                                                                            \
+    }                                                                                                  \
+    if (MODREG) {                                                                                      \
+        if (rex.rex) {                                                                                 \
+            eb1 = TO_NAT((nextop & 7) + (rex.b << 3));                                                 \
+            eb2 = 0;                                                                                   \
+        } else {                                                                                       \
+            ed = (nextop & 7);                                                                         \
+            eb2 = (ed >> 2) * 8;                                                                       \
+            eb1 = TO_NAT(ed & 3);                                                                      \
+        }                                                                                              \
+        RLDIMI(eb1, tmp3, eb2, 56 - eb2);                                                              \
+    } else {                                                                                           \
         addr = geted(dyn, addr, ninst, nextop, &ed, tmp2, tmp1, &fixedaddress, rex, NULL, DS_DISP, 0); \
-        STB(tmp3, fixedaddress, ed);                                                         \
-        SMWRITE();                                                                           \
+        STB(tmp3, fixedaddress, ed);                                                                   \
+        SMWRITE();                                                                                     \
     }
 
             GOCOND(0x90, "SET", "Eb");
@@ -1090,9 +1090,9 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             q0 = fpu_get_scratch(dyn);
             VPKSHSS(VRREG(q0), VRREG(v1), VRREG(v0));
             // q0 low 8 bytes = [pack(v0 h0-h3), zeros]; high 8 bytes = [pack(v1 h0-h3), zeros]
-            MFVSRLD(x4, VSXREG(q0));  // low 32 bits = pack of v0 halfwords 0-3
-            MFVSRD(x5, VSXREG(q0));   // low 32 bits = pack of v1 halfwords 0-3
-            RLDIMI(x4, x5, 32, 0);    // insert v1 result into high 32 bits
+            MFVSRLD(x4, VSXREG(q0)); // low 32 bits = pack of v0 halfwords 0-3
+            MFVSRD(x5, VSXREG(q0));  // low 32 bits = pack of v1 halfwords 0-3
+            RLDIMI(x4, x5, 32, 0);   // insert v1 result into high 32 bits
             MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
@@ -1129,9 +1129,9 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             q0 = fpu_get_scratch(dyn);
             VPKSHUS(VRREG(q0), VRREG(v1), VRREG(v0));
             // q0 low 8 bytes = [pack(v0 h0-h3), zeros]; high 8 bytes = [pack(v1 h0-h3), zeros]
-            MFVSRLD(x4, VSXREG(q0));  // low 32 bits = pack of v0 halfwords 0-3
-            MFVSRD(x5, VSXREG(q0));   // low 32 bits = pack of v1 halfwords 0-3
-            RLDIMI(x4, x5, 32, 0);    // insert v1 result into high 32 bits
+            MFVSRLD(x4, VSXREG(q0)); // low 32 bits = pack of v0 halfwords 0-3
+            MFVSRD(x5, VSXREG(q0));  // low 32 bits = pack of v1 halfwords 0-3
+            RLDIMI(x4, x5, 32, 0);   // insert v1 result into high 32 bits
             MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
@@ -1144,7 +1144,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // VMRGLB interleaves bytes 0-7; the result bytes 8-15 hold the interleave of bytes 4-7
             q0 = fpu_get_scratch(dyn);
             VMRGLB(VRREG(q0), VRREG(v1), VRREG(v0));
-            MFVSRD(x4, VSXREG(q0));   // dword[0] = bytes 8-15 = interleave of bytes 4-7
+            MFVSRD(x4, VSXREG(q0)); // dword[0] = bytes 8-15 = interleave of bytes 4-7
             MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
@@ -1156,7 +1156,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // Interleave high halfwords (halfwords 2-3 of each 64-bit MMX reg)
             q0 = fpu_get_scratch(dyn);
             VMRGLH(VRREG(q0), VRREG(v1), VRREG(v0));
-            MFVSRD(x4, VSXREG(q0));   // dword[0] = bytes 8-15 = interleave of halfwords 2-3
+            MFVSRD(x4, VSXREG(q0)); // dword[0] = bytes 8-15 = interleave of halfwords 2-3
             MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
@@ -1168,7 +1168,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // Interleave high dwords (dword 1 of each 64-bit MMX reg)
             q0 = fpu_get_scratch(dyn);
             VMRGLW(VRREG(q0), VRREG(v1), VRREG(v0));
-            MFVSRD(x4, VSXREG(q0));   // dword[0] = bytes 8-15 = interleave of dword 1
+            MFVSRD(x4, VSXREG(q0)); // dword[0] = bytes 8-15 = interleave of dword 1
             MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
@@ -1183,9 +1183,9 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             q0 = fpu_get_scratch(dyn);
             VPKSWSS(VRREG(q0), VRREG(v1), VRREG(v0));
             // q0 low 8 bytes = [pack(v0 dw0-dw1), zeros]; high 8 bytes = [pack(v1 dw0-dw1), zeros]
-            MFVSRLD(x4, VSXREG(q0));  // low 32 bits = pack of v0 dwords 0-1
-            MFVSRD(x5, VSXREG(q0));   // low 32 bits = pack of v1 dwords 0-1
-            RLDIMI(x4, x5, 32, 0);    // insert v1 result into high 32 bits
+            MFVSRLD(x4, VSXREG(q0)); // low 32 bits = pack of v0 dwords 0-1
+            MFVSRD(x5, VSXREG(q0));  // low 32 bits = pack of v1 dwords 0-1
+            RLDIMI(x4, x5, 32, 0);   // insert v1 result into high 32 bits
             MTVSRDD(VSXREG(v0), xZR, x4);
             PUTEM(v0);
             break;
@@ -1197,7 +1197,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             u8 = F8;
             // PSHUFW shuffles 4 halfwords within a 64-bit MMX register by immediate
             // u8 encodes 4 2-bit indices: word i of result = word (u8>>(2*i))&3 of source
-            MFVSRLD(x4, VSXREG(v1));  // v1 is in VR space, MFVSRLD gets ISA dw1 (MMX data)
+            MFVSRLD(x4, VSXREG(v1)); // v1 is in VR space, MFVSRLD gets ISA dw1 (MMX data)
             // x4 has the 64-bit MMX value in LE order:
             // bits [15:0] = word0, [31:16] = word1, [47:32] = word2, [63:48] = word3
             if (u8 == 0xE4) {
@@ -1212,13 +1212,13 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // Extract halfword: shift right by sel*16, mask to 16 bits
                 // For position 0 (result bits 15:0)
                 if (sel0 == 0) {
-                    RLWINM(x5, x4, 0, 16, 31);         // word 0: low 16 bits
+                    RLWINM(x5, x4, 0, 16, 31); // word 0: low 16 bits
                 } else {
                     RLDICL(x5, x4, 64 - sel0 * 16, 48); // shift right, keep low 16
                 }
                 // For position 1 (result bits 31:16) — extract then insert at bit 16
                 if (sel1 == 0) {
-                    RLDIMI(x5, x4, 16, 32);             // insert word0 shifted left 16 into bits 31:16
+                    RLDIMI(x5, x4, 16, 32); // insert word0 shifted left 16 into bits 31:16
                 } else {
                     RLDICL(x6, x4, 64 - sel1 * 16, 48);
                     RLDIMI(x5, x6, 16, 32);
@@ -1232,7 +1232,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 }
                 // For position 3 (result bits 63:48)
                 if (sel3 == 0) {
-                    RLDICL(x6, x4, 0, 48);              // extract low 16 bits
+                    RLDICL(x6, x4, 0, 48); // extract low 16 bits
                     RLDIMI(x5, x6, 48, 0);
                 } else {
                     RLDICL(x6, x4, 64 - sel3 * 16, 48);
@@ -1418,7 +1418,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 if (rex.w) {
                     MTVSRDD(VSXREG(v0), xZR, ed);
                 } else {
-                    RLWINM(x4, ed, 0, 0, 31);  // zero-extend 32-bit
+                    RLWINM(x4, ed, 0, 0, 31); // zero-extend 32-bit
                     MTVSRDD(VSXREG(v0), xZR, x4);
                 }
             } else {
@@ -1466,7 +1466,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     MFVSRLD(ed, VSXREG(v0));
                 } else {
                     MFVSRLD(ed, VSXREG(v0));
-                    RLWINM(ed, ed, 0, 0, 31);  // zero-extend 32-bit
+                    RLWINM(ed, ed, 0, 0, 31); // zero-extend 32-bit
                     ZEROUP(ed);
                 }
             } else {
@@ -1476,7 +1476,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     STD(x4, fixedaddress, ed);
                 } else {
                     MFVSRLD(x4, VSXREG(v0));
-                    RLWINM(x4, x4, 0, 0, 31);  // zero-extend 32-bit
+                    RLWINM(x4, x4, 0, 0, 31); // zero-extend 32-bit
                     STW(x4, fixedaddress, ed);
                 }
                 SMWRITE2();
@@ -2075,7 +2075,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEB(x2, 0);
             gd = x2;
             ed = x1;
-            emit_add8(dyn, ninst, ed, gd, x4, x5);
+            emit_add8(dyn, ninst, ed, gd, x4, x5, x3, x6);
             GBBACK();
             EBBACK();
             break;
@@ -2086,7 +2086,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGD;
             GETED(0);
             if (ed != gd) MV(x7, ed);
-            emit_add32(dyn, ninst, rex, ed, gd, x4, x5, x6);
+            emit_add32(dyn, ninst, rex, ed, gd, x4, x5, x6, x3);
             if (ed != gd) MVxw(gd, x7);
             WBACK;
             break;
@@ -2162,9 +2162,9 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             }
             // Insert 16-bit value into MMX register at position u8 (0-3)
             // MMX data is in VR space (ISA dw1)
-            MFVSRLD(x4, VSXREG(v0));  // get current 64-bit value from ISA dw1
+            MFVSRLD(x4, VSXREG(v0)); // get current 64-bit value from ISA dw1
             // Clear target halfword and insert new value
-            RLWINM(x5, ed, 0, 16, 31);   // zero-extend to 16 bits
+            RLWINM(x5, ed, 0, 16, 31); // zero-extend to 16 bits
             {
                 int shift = u8 * 16;
                 RLDIMI(x4, x5, shift, 64 - shift - 16);
@@ -2178,7 +2178,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             if (MODREG) {
                 GETEM(v0, 0);
                 u8 = (F8) & 3;
-                MFVSRLD(x4, VSXREG(v0));  // 64-bit MMX value from ISA dw1
+                MFVSRLD(x4, VSXREG(v0)); // 64-bit MMX value from ISA dw1
                 {
                     int shift = u8 * 16;
                     if (shift)
@@ -2209,7 +2209,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 // UIM2 for XXSPLTW: x86 word w → BE word (3-w) → UIM2 = 3-w
                 XXSPLTW(VSXREG(v0), VSXREG(v0), 3 - (u8 & 3));
             } else if ((((u8 & 0x0F) == 0x04) || ((u8 & 0x0F) == 0x0E))
-                    && (((u8 & 0xF0) == 0x40) || ((u8 & 0xF0) == 0xE0))) {
+                && (((u8 & 0xF0) == 0x40) || ((u8 & 0xF0) == 0xE0))) {
                 // Tier 2: Doubleword-aligned — use XXPERMDI (1 instruction)
                 // Low result half from Gx, high result half from Ex
                 // XXPERMDI(XT, XA, XB, DM): dw0 from XA, dw1 from XB
@@ -2256,22 +2256,23 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     int sel1 = (u8 >> 2) & 3;
                     int sel2 = (u8 >> 4) & 3;
                     int sel3 = (u8 >> 6) & 3;
-                    MFVSRLD(x4, VSXREG(v0));    // x86 low 64 bits (ISA dw1) - words 0,1
-                    MFVSRD(x5, VSXREG(v0));     // x86 high 64 bits (ISA dw0) - words 2,3
-                    #define EXTRACT_WORD(dst, sel) do {                  \
-                        int _reg = ((sel) < 2) ? x4 : x5;              \
-                        if (((sel) & 1) == 0)                           \
-                            RLWINM(dst, _reg, 0, 0, 31);               \
-                        else                                            \
-                            SRDI(dst, _reg, 32);                        \
-                    } while(0)
+                    MFVSRLD(x4, VSXREG(v0)); // x86 low 64 bits (ISA dw1) - words 0,1
+                    MFVSRD(x5, VSXREG(v0));  // x86 high 64 bits (ISA dw0) - words 2,3
+#define EXTRACT_WORD(dst, sel)            \
+    do {                                  \
+        int _reg = ((sel) < 2) ? x4 : x5; \
+        if (((sel) & 1) == 0)             \
+            RLWINM(dst, _reg, 0, 0, 31);  \
+        else                              \
+            SRDI(dst, _reg, 32);          \
+    } while (0)
                     EXTRACT_WORD(x6, sel0);
                     EXTRACT_WORD(x7, sel1);
                     RLDIMI(x6, x7, 32, 0);
                     EXTRACT_WORD(x3, sel2);
                     EXTRACT_WORD(x7, sel3);
                     RLDIMI(x3, x7, 32, 0);
-                    #undef EXTRACT_WORD
+#undef EXTRACT_WORD
                     MTVSRDD(VSXREG(v0), x3, x6);
                 }
             }
@@ -2300,12 +2301,12 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             // Splat Em to all qword lanes (MMX: Em is 64-bit in ISA dw1)
             // For MMX, Em is already just 64 bits. Splat the shift count to all halfword lanes
             // using the qword value and let VMX shift use low bits of each element
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat ISA dw1 (MMX data)
             // Check if count > 15
             LI(x4, 15);
             MTVSRDD(VSXREG(q1), x4, x4);
-            VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));  // q1 = (count > 15) ? -1 : 0
-            VNOR(VRREG(q1), VRREG(q1), VRREG(q1));       // q1 = in-range mask
+            VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1)); // q1 = (count > 15) ? -1 : 0
+            VNOR(VRREG(q1), VRREG(q1), VRREG(q1));     // q1 = in-range mask
             VSRH(VRREG(v0), VRREG(v0), VRREG(q0));
             XXLAND(VSXREG(v0), VSXREG(v0), VSXREG(q1));
             break;
@@ -2316,7 +2317,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat ISA dw1 (MMX data)
             LI(x4, 31);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2331,7 +2332,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat ISA dw1 (MMX data)
             LI(x4, 63);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2362,12 +2363,12 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v0, 0);
             // Extract sign bits of 8 bytes from 64-bit MMX register
             // MMX data is in VR space (ISA dw1)
-            MFVSRLD(x4, VSXREG(v0));   // ISA dw1 = the 64-bit MMX value
+            MFVSRLD(x4, VSXREG(v0)); // ISA dw1 = the 64-bit MMX value
             // Isolate sign bits: x4 & 0x8080808080808080
             LI(x6, 0);
             ORIS(x6, x6, 0x8080);
             ORI(x6, x6, 0x8080);
-            RLDIMI(x6, x6, 32, 0);      // x6 = 0x8080808080808080
+            RLDIMI(x6, x6, 32, 0); // x6 = 0x8080808080808080
             AND(x7, x4, x6);
             // Magic multiplier to gather sign bits: 0x0002040810204081
             LIS(x3, 0x0002);
@@ -2450,10 +2451,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             // Clamp shift count to 15
-            MFVSRLD(x4, VSXREG(v1));  // read ISA dw1 (MMX data)
+            MFVSRLD(x4, VSXREG(v1)); // read ISA dw1 (MMX data)
             CMPLDI(x4, 15);
             LI(x5, 15);
-            ISEL(x4, x4, x5, 0);     // if x4 < 15 pick x4, else 15
+            ISEL(x4, x4, x5, 0); // if x4 < 15 pick x4, else 15
             MTVSRDD(VSXREG(q0), x4, x4);
             VSRAH(VRREG(v0), VRREG(v0), VRREG(q0));
             break;
@@ -2463,7 +2464,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETGM(v0);
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
-            MFVSRLD(x4, VSXREG(v1));  // read ISA dw1 (MMX data)
+            MFVSRLD(x4, VSXREG(v1)); // read ISA dw1 (MMX data)
             CMPLDI(x4, 31);
             LI(x5, 31);
             ISEL(x4, x4, x5, 0);
@@ -2588,7 +2589,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat ISA dw1 (MMX data)
             LI(x4, 15);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2603,7 +2604,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat ISA dw1 (MMX data)
             LI(x4, 31);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));
@@ -2618,7 +2619,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             GETEM(v1, 0);
             q0 = fpu_get_scratch(dyn);
             q1 = fpu_get_scratch(dyn);
-            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3);  // splat ISA dw1 (MMX data)
+            XXPERMDI(VSXREG(q0), VSXREG(v1), VSXREG(v1), 3); // splat ISA dw1 (MMX data)
             LI(x4, 63);
             MTVSRDD(VSXREG(q1), x4, x4);
             VCMPGTUD(VRREG(q1), VRREG(q0), VRREG(q1));

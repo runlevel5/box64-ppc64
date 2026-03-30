@@ -58,7 +58,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGWEW(x1, x2, 0);
-            emit_add16(dyn, ninst, ed, gd, x4, x5, x6);
+            emit_add16(dyn, ninst, ed, gd, x4, x5, x6, x3);
             EWBACK;
             break;
         case 0x03:
@@ -66,7 +66,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
             nextop = F8;
             GETGWEW(x1, x2, 0);
-            emit_add16(dyn, ninst, gd, ed, x4, x5, x6);
+            emit_add16(dyn, ninst, gd, ed, x4, x5, x6, x3);
             GWBACK;
             break;
         case 0x05:
@@ -75,7 +75,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             i32 = F16;
             BF_EXTRACT(x1, xRAX, 15, 0);
             MOV32w(x2, i32);
-            emit_add16(dyn, ninst, x1, x2, x3, x4, x5);
+            emit_add16(dyn, ninst, x1, x2, x3, x4, x5, x6);
             BF_INSERT(xRAX, x1, 15, 0);
             break;
         case 0x06:
@@ -414,7 +414,7 @@ uintptr_t dynarec64_66(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     else
                         i32 = (uint16_t)(int16_t)F8S;
                     MOV32w(x5, i32);
-                    emit_add16(dyn, ninst, ed, x5, x2, x4, x6);
+                    emit_add16(dyn, ninst, ed, x5, x2, x4, x6, x3);
                     EWBACK;
                     break;
                 case 1:

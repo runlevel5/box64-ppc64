@@ -296,10 +296,16 @@ Note: LA64 and RV64 achieve better fused instruction counts than PPC64LE because
 - **emit_sub32c special case:** When using the ADDI fast path (small constant), s2 doesn't hold the constant value. Added guard to materialize constant into s2 when carry fusion is active.
 - **Tests:** `test_sub_carry_fusion.asm` — 40 sub-tests covering sub8/16/32/64 → ADC/SBB with CF=1 and CF=0, immediate paths, chained SUBs, ZF non-regression.
 
-#### ADD Carry Fusion — Still Pending
-- **Challenge:** ADD overflow/carry can't be recovered from a simple CMP of operands. For carry after ADD: carry = (result < op1), but fusion stores (op1, op2), not (result, op1). The existing fusion mechanism passes two operands to CMPLD; for ADD carry, we'd need to compare result against an operand instead.
-- **Options:** (a) Save result instead of op2 for ADD carry path; (b) Compute result at branch site from saved operands; (c) New comparison pattern at consumer
-- **Difficulty:** MEDIUM — requires different operand strategy than SUB carry
+#### ADD Carry Fusion — ✅ DONE
+- **Implementation:** Added `NAT_FLAGS_ENABLE_CARRY()` calls and 3-way fusion dispatch to all 5 ADD emit functions (emit_add8, emit_add16, emit_add32, emit_add32c, emit_add8c).
+- **Mechanism:** Before the ADD instruction, when carry fusion is active (`nat_flags_fusion && nat_flags_needcarry`), save op1 into scratch register s6 via `MV(s6, s1)`. Then in the fusion block, 3-way dispatch:
+  1. **needcarry** → `NAT_FLAGS_OPS(result, saved_op1, ...)` — passes result and original op1 for unsigned CMPLD at branch site
+  2. **needsign** → sign-extend result, `NAT_FLAGS_OPS(result, xZR, ...)`
+  3. **else** → zero-extend result, `NAT_FLAGS_OPS(result, xZR, ...)`
+- **Key difference from SUB:** ADD carry = (result < op1) in unsigned terms, so `NAT_FLAGS_OPS(result, saved_op1)`. SUB carry = (op1 < op2), so `NAT_FLAGS_OPS(saved_op1, op2)`. This is why ADD saves op1 pre-ADD and compares against the result, while SUB saves op1 and compares against op2.
+- **emit_add32c:** No extra constant materialization needed (unlike emit_sub32c). Since ADD carry compares result vs saved_op1 (not op1 vs op2), s2 is not needed in the carry path.
+- **Signatures:** All 5 emit_add functions gained an `int s6` parameter (29 call sites updated across 7 files).
+- **Tests:** `test_add_carry_fusion.asm` — 45 sub-tests covering add8/16/32/64 → ADC/SBB with CF=1 and CF=0, add8c/add32c immediate paths (small + large constants), chained ADDs, ZF non-regression, multi-flag verification (CF+ZF+SF).
 
 ### Gap 3: Wire Up NATIVESET for SETcc — ✅ ALREADY DONE
 - **Current state:** NATIVESET is fully wired into SETcc handlers (0x90-0x9F) in `_0f.c` lines 1024-1049. The `GOCOND` SETcc expansion checks `nat_flags_fusion` and calls `NATIVESET(NATYES, tmp3)` for the fusion path, falling back to xFlags extraction otherwise.
