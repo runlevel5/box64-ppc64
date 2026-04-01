@@ -6,6 +6,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BOX64="${BOX64:-${HOME}/box64/build/box64}"
+BUILD_DIR="${TMPDIR:-/tmp}"
 PASS=0
 FAIL=0
 TOTAL=0
@@ -14,8 +15,9 @@ ERRORS=""
 build_test() {
     local name="$1"
     local src="${SCRIPT_DIR}/${name}.asm"
-    local obj="/tmp/${name}.o"
-    local bin="/tmp/${name}"
+    local obj="${BUILD_DIR}/${name}.o"
+    local bin="${BUILD_DIR}/${name}"
+    local prebuilt="${SCRIPT_DIR}/bin/${name}"
 
     if [ ! -f "$src" ]; then
         echo "ERROR: $src not found"
@@ -24,14 +26,28 @@ build_test() {
 
     nasm -f elf64 -I "${SCRIPT_DIR}/" "$src" -o "$obj" 2>&1
     if [ $? -ne 0 ]; then
-        echo "ERROR: nasm failed for $name"
+        echo "WARN: nasm failed for $name, trying pre-built binary"
+        if [ -x "$prebuilt" ]; then
+            cp "$prebuilt" "$bin"
+            return 0
+        fi
+        echo "ERROR: no pre-built binary for $name"
         return 1
     fi
 
     x86_64-linux-gnu-ld "$obj" -o "$bin" 2>&1
     if [ $? -ne 0 ]; then
-        echo "ERROR: link failed for $name"
-        return 1
+        # Try native ld as fallback (works on x86_64 hosts)
+        ld "$obj" -o "$bin" 2>&1
+        if [ $? -ne 0 ]; then
+            echo "WARN: link failed for $name, trying pre-built binary"
+            if [ -x "$prebuilt" ]; then
+                cp "$prebuilt" "$bin"
+                return 0
+            fi
+            echo "ERROR: no pre-built binary for $name"
+            return 1
+        fi
     fi
 
     return 0
@@ -39,7 +55,7 @@ build_test() {
 
 run_test() {
     local name="$1"
-    local bin="/tmp/${name}"
+    local bin="${BUILD_DIR}/${name}"
     local mode="$2"  # "dynarec" or "interp"
 
     if [ "$mode" = "interp" ]; then

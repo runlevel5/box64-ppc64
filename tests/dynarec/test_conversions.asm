@@ -40,6 +40,9 @@ section .data
     t33_name: db "cbw/cwde/cdqe chain", 0
     t34_name: db "cvtsd2ss precision", 0
     t35_name: db "cvtss2si round", 0
+    t36_name: db "cvtsd2si round even", 0
+    t37_name: db "cvtsd2si round i64", 0
+    t38_name: db "cvtsd2si neg round", 0
 
     align 16
     ; Float values for conversion tests
@@ -70,6 +73,12 @@ section .data
     ; 1000000000 (10^9) as double = 0x41CDCD6500000000
     ; Actually: 1e9 = 0x41CDCD6500000000
     val_1e9d:   dq 0x41CDCD6500000000
+    ; 2.5 = 0x4004000000000000
+    val_2_5d:   dq 0x4004000000000000
+    ; 3.5 = 0x400C000000000000
+    val_3_5d:   dq 0x400C000000000000
+    ; -2.5 = 0xC004000000000000
+    val_neg2_5d: dq 0xC004000000000000
 
     align 16
     ; Packed vectors for conversion
@@ -345,5 +354,27 @@ _start:
     cvtss2si eax, xmm0
     ; 2.5 rounds to 2 (banker's rounding: ties to even)
     CHECK_EQ_32 eax, 2
+
+    ; ==== Test 36: cvtsd2si round to nearest even: 2.5 -> 2 ====
+    ; Banker's rounding: 2.5 is equidistant, rounds to even (2)
+    TEST_CASE t36_name
+    movsd xmm0, [rel val_2_5d]
+    cvtsd2si eax, xmm0
+    CHECK_EQ_32 eax, 2
+
+    ; ==== Test 37: cvtsd2si f64 -> i64: 3.5 -> 4 ====
+    ; 3.5 is equidistant, rounds to even (4)
+    TEST_CASE t37_name
+    movsd xmm0, [rel val_3_5d]
+    cvtsd2si rax, xmm0
+    CHECK_EQ_64 rax, 4
+
+    ; ==== Test 38: cvtsd2si negative: -2.5 -> -2 ====
+    ; Banker's rounding: -2.5 rounds to -2 (even)
+    TEST_CASE t38_name
+    movsd xmm0, [rel val_neg2_5d]
+    cvtsd2si eax, xmm0
+    ; -2 as 32-bit = 0xFFFFFFFE
+    CHECK_EQ_32 eax, 0xFFFFFFFE
 
     END_TESTS

@@ -35,6 +35,7 @@ section .data
     t28_name: db "lea basic", 0
     t29_name: db "lea sib", 0
     t30_name: db "movsx 8->32", 0
+    t31_name: db "bswap 16 (undefined)", 0
 
 section .text
 global _start
@@ -258,5 +259,17 @@ _start:
     mov bl, 0x80            ; -128
     movsx eax, bl
     CHECK_EQ_32 eax, 0xFFFFFF80
+
+    ; ==== Test 31: bswap with 66 prefix (16-bit operand) ====
+    ; On modern x86 CPUs, BSWAP with 16-bit operand is undefined behavior
+    ; but typically zeros the low 16 bits, preserving upper bits.
+    ; box64 emulates this modern behavior.
+    TEST_CASE t31_name
+    mov rax, 0x123456789ABCDEF0
+    ; Use db encoding: 66 0F C8 = bswap ax (16-bit)
+    db 0x66, 0x0F, 0xC8
+    ; Expected: upper 48 bits preserved, low 16 bits zeroed
+    ; RAX = 0x123456789ABC0000
+    CHECK_EQ_64 rax, 0x123456789ABC0000
 
     END_TESTS

@@ -43,6 +43,13 @@ section .data
     t33_name: db "palignr 1", 0
     t34_name: db "insertps zero", 0
     t35_name: db "unpcklps self", 0
+    t36_name: db "movhps load lo", 0
+    t37_name: db "movhps load hi", 0
+    t38_name: db "movhps store", 0
+    t39_name: db "movlps load lo", 0
+    t40_name: db "movlps load hi", 0
+    t41_name: db "movq2dq lo", 0
+    t42_name: db "movq2dq hi=0", 0
 
     align 16
     ; Float data (as dwords for easy verification)
@@ -81,6 +88,14 @@ section .data
     ; Word data for punpcklw/punpckhw
     w_data1:   dw 0x1111, 0x2222, 0x3333, 0x4444, 0x5555, 0x6666, 0x7777, 0x8888
     w_data2:   dw 0xAAAA, 0xBBBB, 0xCCCC, 0xDDDD, 0xEEEE, 0xFFFF, 0x9999, 0x0000
+
+    ; Qword data for movhps/movlps/movq2dq tests
+    q_hps:     dq 0xDEADBEEFCAFEBABE    ; 8 bytes for movhps load
+    q_lps:     dq 0x1122334455667788    ; 8 bytes for movlps load
+    q_mmx:     dq 0xAAAABBBBCCCCDDDD    ; 8 bytes for movq2dq
+
+section .bss
+    q_store:   resq 1                  ; 8 bytes for movhps store
 
 section .text
 global _start
@@ -522,5 +537,65 @@ _start:
     unpcklps xmm0, xmm0
     movq rax, xmm0
     CHECK_EQ_64 rax, 0x1111111111111111
+
+    ; ==== Test 36: MOVHPS load - check low 64 unchanged ====
+    ; movhps xmm0, [mem]: xmm0[127:64] = mem64, xmm0[63:0] unchanged
+    ; Start with xmm0 = f_1234 = {1.0, 2.0, 3.0, 4.0}
+    ; Load 0xDEADBEEFCAFEBABE into high qword
+    TEST_CASE t36_name
+    movdqa xmm0, [rel f_1234]
+    movhps xmm0, [rel q_hps]
+    movq rax, xmm0
+    CHECK_EQ_64 rax, 0x400000003F800000
+
+    ; ==== Test 37: MOVHPS load - check high 64 loaded ====
+    TEST_CASE t37_name
+    movdqa xmm0, [rel f_1234]
+    movhps xmm0, [rel q_hps]
+    pextrq rax, xmm0, 1
+    CHECK_EQ_64 rax, 0xDEADBEEFCAFEBABE
+
+    ; ==== Test 38: MOVHPS store - store high 64 bits of xmm to memory ====
+    ; movhps [mem], xmm0: mem64 = xmm0[127:64]
+    ; xmm0 = f_1234 = {1.0, 2.0, 3.0, 4.0}
+    ; High 64 bits = {3.0, 4.0} = 0x4080000040400000
+    TEST_CASE t38_name
+    movdqa xmm0, [rel f_1234]
+    movhps [rel q_store], xmm0
+    mov rax, [rel q_store]
+    CHECK_EQ_64 rax, 0x4080000040400000
+
+    ; ==== Test 39: MOVLPS load - check low 64 loaded ====
+    ; movlps xmm0, [mem]: xmm0[63:0] = mem64, xmm0[127:64] unchanged
+    TEST_CASE t39_name
+    movdqa xmm0, [rel f_1234]
+    movlps xmm0, [rel q_lps]
+    movq rax, xmm0
+    CHECK_EQ_64 rax, 0x1122334455667788
+
+    ; ==== Test 40: MOVLPS load - check high 64 unchanged ====
+    TEST_CASE t40_name
+    movdqa xmm0, [rel f_1234]
+    movlps xmm0, [rel q_lps]
+    pextrq rax, xmm0, 1
+    CHECK_EQ_64 rax, 0x4080000040400000
+
+    ; ==== Test 41: MOVQ2DQ - check low 64 = MMX value ====
+    ; movq2dq xmm0, mm0: xmm0[63:0] = mm0[63:0], xmm0[127:64] = 0
+    TEST_CASE t41_name
+    pcmpeqd xmm0, xmm0         ; xmm0 = all ones
+    movq mm0, [rel q_mmx]       ; mm0 = 0xAAAABBBBCCCCDDDD
+    movq2dq xmm0, mm0
+    movq rax, xmm0
+    CHECK_EQ_64 rax, 0xAAAABBBBCCCCDDDD
+
+    ; ==== Test 42: MOVQ2DQ - check high 64 = zero ====
+    TEST_CASE t42_name
+    pcmpeqd xmm0, xmm0         ; xmm0 = all ones
+    movq mm0, [rel q_mmx]
+    movq2dq xmm0, mm0
+    pextrq rax, xmm0, 1
+    CHECK_EQ_64 rax, 0
+    emms                        ; clean up MMX state
 
     END_TESTS

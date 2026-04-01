@@ -40,8 +40,7 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     int q0, q1, q2;
     int d0, d1, d2;
     uint8_t tmp1, tmp2, tmp3;
-    int64_t fixedaddress, gdoffset;
-    int unscaled;
+    int64_t fixedaddress;
     MAYUSE(d0);
     MAYUSE(d1);
     MAYUSE(d2);
@@ -61,7 +60,6 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
     MAYUSE(j64);
     MAYUSE(i32);
     MAYUSE(u8);
-    MAYUSE(gdoffset);
     MAYUSE(tmp1);
     MAYUSE(tmp2);
     MAYUSE(tmp3);
@@ -1742,9 +1740,6 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 if (u8 < 4) {
                     // Target is in low 64 bits (x4)
                     if (shift == 0) {
-                        RLDICR(x4, x4, 0, 47); // clear low 16 bits? No...
-                        // Actually: insert at bit position 'shift'
-                        // Clear bits [shift+15:shift], insert ed<<shift
                         RLWINM(x6, ed, 0, 16, 31); // zero-extend to 16 bits
                         RLDIMI(x4, x6, 0, 48);     // insert at bits [15:0]
                     } else {
@@ -1835,9 +1830,6 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 // 16-bit operand size prefix + BSWAP = undefined behavior
                 // Modern x86 CPUs zero the low 16 bits
-                CLRLDI(x4, gd, 48); // x4 = upper bits only... no
-                // Actually we need to clear bits 0-15: gd = gd & ~0xFFFF
-                // RLDICR clears low bits: RLDICR(gd, gd, 0, 47) keeps bits 63:16, zeros 15:0
                 RLDICR(gd, gd, 0, 47);
             }
             break;
