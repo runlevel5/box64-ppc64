@@ -328,9 +328,9 @@ _start:
     ; Unsigned saturation of signed words to unsigned bytes:
     ; xmm0: 0->0, 127->127, 255->255, 256->255, 300->255, -1->0, 1000->255, 65535(=-1 signed)->0
     ; xmm1: 0->0, 1->1, 128->128, 255->255, 256->255, 512->255, 1024->255, 2048->255
-    ; Low 8 bytes: 00,7F,FF,FF,FF,00,FF,00
+    ; Low 8 bytes (LE): 00,7F,FF,FF,FF,00,FF,00
     movq rax, xmm0
-    CHECK_EQ_64 rax, 0x00FF00FFFF7F0000
+    CHECK_EQ_64 rax, 0x00FF00FFFFFF7F00
 
     ; ==== Test 24: paddb ====
     TEST_CASE t24_name

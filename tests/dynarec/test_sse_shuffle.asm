@@ -479,13 +479,13 @@ _start:
     ; shuf_rev: {15,14,...,1,0}
     ; b_data1: 00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF
     ; Reversed: FF EE DD CC BB AA 99 88 77 66 55 44 33 22 11 00
-    ; Low 64: 77 66 55 44 33 22 11 00 -> 0x7766554433221100
+    ; Low 64 (bytes 0-7): FF EE DD CC BB AA 99 88 -> 0x8899AABBCCDDEEFF
     TEST_CASE t31_name
     movdqa xmm0, [rel b_data1]
     movdqa xmm1, [rel shuf_rev]
     pshufb xmm0, xmm1
     movq rax, xmm0
-    CHECK_EQ_64 rax, 0x7766554433221100
+    CHECK_EQ_64 rax, 0x8899AABBCCDDEEFF
 
     ; ==== Test 32: SHUFPD imm=0x1 - swap low/high between sources ====
     ; imm=0x1=01: [src1[1], src2[0]]

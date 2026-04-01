@@ -241,7 +241,7 @@ _start:
     mov rax, 0xDEADBEEF12345678
     mov rbx, 0xFFFFFFFFFFFFFFFF
     xor rax, rbx                ; bitwise NOT
-    CHECK_EQ_64 rax, 0x2152411FEDCBA987
+    CHECK_EQ_64 rax, 0x21524110EDCBA987
 
     ; ==== Test 33: and Gb,Eb mem (0x22 mem) ====
     TEST_CASE t33_name

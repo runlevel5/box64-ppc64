@@ -165,9 +165,11 @@ _fw_print_dec:
 ;; Note: uses r14 as scratch to avoid self-compare when %1 is rax
 %macro CHECK_EQ_64 2
     push r14
+    push r15
     push rsi
     mov r14, %2
-    cmp %1, r14
+    mov r15, %1            ; save actual value before any calls clobber it
+    cmp r15, r14
     jne %%fail
     ; PASS
     lea rsi, [rel _fw_pass_msg]
@@ -180,16 +182,17 @@ _fw_print_dec:
     call _fw_print_str
     lea rsi, [rel _fw_expect_msg]
     call _fw_print_str
-    mov rax, %2
+    mov rax, r14           ; expected (already saved in r14)
     call _fw_print_hex64
     lea rsi, [rel _fw_got_msg]
     call _fw_print_str
-    mov rax, %1
+    mov rax, r15           ; actual (saved in r15 before clobber)
     call _fw_print_hex64
     lea rsi, [rel _fw_nl]
     call _fw_print_str
 %%done:
     pop rsi
+    pop r15
     pop r14
 %endmacro
 
@@ -348,3 +351,65 @@ _fw_print_dec:
 %define OF 0x0800
 %define FLAGS_MASK_ARITH (CF|PF|AF|ZF|SF|OF)
 %define FLAGS_MASK_LOGIC (CF|PF|ZF|SF|OF)
+
+;; CHECK_APPROX_PS_64 actual_reg, expected_value
+;; Checks two packed float32 values (in a 64-bit register) are approximately
+;; equal by comparing the integer (ULP) distance of each 32-bit lane.
+;; For positive IEEE 754 floats, the integer distance of bit patterns is
+;; proportional to relative error -- this handles binade crossings correctly.
+;; Tolerance: 2048 ULPs (~11 bits), matching RCPPS/RSQRTPS ~12-bit mantissa spec.
+%macro CHECK_APPROX_PS_64 2
+    push r14
+    push r15
+    push rsi
+    push rbx
+    push rcx
+    mov r15, %1            ; save actual (two packed float32)
+    mov r14, %2            ; save expected (two packed float32)
+    ;; Check low 32-bit lane
+    mov eax, r15d          ; actual low dword
+    mov ecx, r14d          ; expected low dword
+    sub eax, ecx
+    ;; absolute value of difference
+    cdq                    ; sign-extend eax into edx
+    xor eax, edx
+    sub eax, edx           ; eax = abs(actual_lo - expected_lo)
+    cmp eax, 2048
+    ja %%fail
+    ;; Check high 32-bit lane
+    mov rax, r15
+    shr rax, 32            ; actual high dword
+    mov rcx, r14
+    shr rcx, 32            ; expected high dword
+    sub eax, ecx
+    cdq
+    xor eax, edx
+    sub eax, edx           ; eax = abs(actual_hi - expected_hi)
+    cmp eax, 2048
+    ja %%fail
+    ; PASS
+    lea rsi, [rel _fw_pass_msg]
+    call _fw_print_str
+    inc r12d
+    jmp %%done
+%%fail:
+    ; FAIL - show expected/got (unmasked for debugging)
+    lea rsi, [rel _fw_fail_msg]
+    call _fw_print_str
+    lea rsi, [rel _fw_expect_msg]
+    call _fw_print_str
+    mov rax, r14
+    call _fw_print_hex64
+    lea rsi, [rel _fw_got_msg]
+    call _fw_print_str
+    mov rax, r15
+    call _fw_print_hex64
+    lea rsi, [rel _fw_nl]
+    call _fw_print_str
+%%done:
+    pop rcx
+    pop rbx
+    pop rsi
+    pop r15
+    pop r14
+%endmacro

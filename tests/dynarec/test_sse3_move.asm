@@ -224,19 +224,19 @@ _start:
     CHECK_EQ_64 rax, 0x3333333322222222
 
     ; ==== Test 21-22: RCPPS xmm, xmm ====
-    ; All four lanes: rcp(1.0) = 1.0
+    ; All four lanes: rcp(1.0) ≈ 1.0 (approximation instruction)
     ; Input: [1.0, 1.0, 1.0, 1.0]
-    ; Expected: [0x3F800000, 0x3F800000, 0x3F800000, 0x3F800000]
-    ; lo64 = 0x3F800000_3F800000, hi64 = 0x3F800000_3F800000
+    ; Expected: approximately [0x3F800000, 0x3F800000, 0x3F800000, 0x3F800000]
+    ; RCPPS is an approximation with ~12-bit mantissa precision
     TEST_CASE t21_name
     movaps xmm0, [rel vec_ps_ones]
     rcpps xmm1, xmm0
     movq rax, xmm1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_64 rax, 0x3F8000003F800000
 
     TEST_CASE t22_name
     pextrq rax, xmm1, 1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_64 rax, 0x3F8000003F800000
 
     ; ==== Test 23-24: RSQRTSS xmm, xmm ====
     ; rsqrt(1.0) = 1/sqrt(1.0) = 1.0 = 0x3F800000
@@ -255,18 +255,18 @@ _start:
     CHECK_EQ_64 rax, 0x3333333322222222
 
     ; ==== Test 25-26: RSQRTPS xmm, xmm ====
-    ; All four lanes: rsqrt(1.0) = 1.0
+    ; All four lanes: rsqrt(1.0) ≈ 1.0 (approximation instruction)
     ; Input: [1.0, 1.0, 1.0, 1.0]
-    ; Expected: [0x3F800000, 0x3F800000, 0x3F800000, 0x3F800000]
+    ; RSQRTPS is an approximation with ~12-bit mantissa precision
     TEST_CASE t25_name
     movaps xmm0, [rel vec_ps_ones]
     rsqrtps xmm1, xmm0
     movq rax, xmm1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_64 rax, 0x3F8000003F800000
 
     TEST_CASE t26_name
     pextrq rax, xmm1, 1
-    CHECK_EQ_64 rax, 0x3F8000003F800000
+    CHECK_APPROX_PS_64 rax, 0x3F8000003F800000
 
     ; ==== Test 27-28: MOVDDUP with zero ====
     ; Source: lo64=0, hi64=don't care
