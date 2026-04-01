@@ -24,7 +24,15 @@ build_test() {
         return 1
     fi
 
-    nasm -f elf64 -I "${SCRIPT_DIR}/" "$src" -o "$obj" 2>&1
+    # Detect 32-bit tests by name prefix
+    local nasm_fmt="elf64"
+    local ld_emul=""
+    if [[ "$name" == test_32bit_* ]]; then
+        nasm_fmt="elf32"
+        ld_emul="-m elf_i386"
+    fi
+
+    nasm -f "$nasm_fmt" -I "${SCRIPT_DIR}/" "$src" -o "$obj" 2>&1
     if [ $? -ne 0 ]; then
         echo "WARN: nasm failed for $name, trying pre-built binary"
         if [ -x "$prebuilt" ]; then
@@ -35,10 +43,10 @@ build_test() {
         return 1
     fi
 
-    x86_64-linux-gnu-ld "$obj" -o "$bin" 2>&1
+    x86_64-linux-gnu-ld $ld_emul "$obj" -o "$bin" 2>&1
     if [ $? -ne 0 ]; then
         # Try native ld as fallback (works on x86_64 hosts)
-        ld "$obj" -o "$bin" 2>&1
+        ld $ld_emul "$obj" -o "$bin" 2>&1
         if [ $? -ne 0 ]; then
             echo "WARN: link failed for $name, trying pre-built binary"
             if [ -x "$prebuilt" ]; then
