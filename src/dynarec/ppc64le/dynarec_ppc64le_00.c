@@ -3694,7 +3694,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         jump_to_epilog(dyn, 0, xRIP, ninst);
                         MARK3;
                     }
-                    DIVWU(x3, x2, ed); // warning: x2 and ed must be zero extended!
+                    DIVWU(x3, x2, ed);
                     // Remainder = dividend - quotient * divisor
                     MULLW(x4, x3, ed);
                     SUB(x4, x2, x4);
@@ -3728,7 +3728,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         MARK3;
                     }
                     EXTSH(x2, xRAX);
-                    DIVW(x3, x2, ed); // warning: x2 and ed must be sign extended!
+                    DIVW(x3, x2, ed);
                     // Remainder = dividend - quotient * divisor
                     MULLW(x4, x3, ed);
                     SUB(x4, x2, x4);
