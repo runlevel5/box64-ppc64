@@ -743,9 +743,8 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     // CF/OF = (x1 >> 8) != 0
     SRWI(x2, x1, 8);
     CMPWI(x2, 0);
-    LI(x3, 1);
-    // ISEL: if CR0.EQ set → RT=RA(=0); else RT=RB(=x3=1). So x3 = (high!=0)?1:0
-    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    // x3 = (high != 0) ? 1 : 0  (CR0.EQ set when high == 0)
+    SETBOOLN(x3, BI(0, CR_EQ));
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -770,8 +769,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     // CF/OF = (x1 >> 16) != 0
     SRWI(x2, x1, 16);
     CMPWI(x2, 0);
-    LI(x3, 1);
-    ISEL(x3, 0, x3, BI(0, CR_EQ)); // x3 = (high!=0) ? 1 : 0
+    SETBOOLN(x3, BI(0, CR_EQ)); // x3 = (high!=0) ? 1 : 0
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -790,8 +788,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     LI(x3, 0);
     STW(x3, offsetof(x64emu_t, df), xEmu);
     CMPWI(x2, 0);
-    LI(x3, 1);
-    ISEL(x3, 0, x3, BI(0, CR_EQ)); // x3 = (op1!=0) ? 1 : 0
+    SETBOOLN(x3, BI(0, CR_EQ)); // x3 = (op1!=0) ? 1 : 0
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -811,8 +808,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     LI(x3, 0);
     STW(x3, offsetof(x64emu_t, df), xEmu);
     CMPDI(x2, 0);
-    LI(x3, 1);
-    ISEL(x3, 0, x3, BI(0, CR_EQ)); // x3 = (op1!=0) ? 1 : 0
+    SETBOOLN(x3, BI(0, CR_EQ)); // x3 = (op1!=0) ? 1 : 0
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -844,8 +840,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     // For a signed 16-bit value in a 32-bit register, ASR by 16 gives sign extension
     SRAWI(x4, x1, 16);
     CMPW(x2, x4);
-    LI(x3, 1);
-    ISEL(x3, 0, x3, BI(0, CR_EQ)); // x3 = (x2!=x4) ? 1 : 0
+    SETBOOLN(x3, BI(0, CR_EQ)); // x3 = (x2!=x4) ? 1 : 0
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -866,8 +861,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     SRAWI(x2, x1, 16);
     SRAWI(x4, x1, 31);
     CMPW(x2, x4);
-    LI(x3, 1);
-    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    SETBOOLN(x3, BI(0, CR_EQ));
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -888,8 +882,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     STW(x3, offsetof(x64emu_t, df), xEmu);
     SRAWI(x4, x1, 31);
     CMPW(x2, x4);
-    LI(x3, 1);
-    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    SETBOOLN(x3, BI(0, CR_EQ));
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -910,8 +903,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     STW(x3, offsetof(x64emu_t, df), xEmu);
     SRADI(x4, x1, 63);
     CMPD(x2, x4);
-    LI(x3, 1);
-    ISEL(x3, 0, x3, BI(0, CR_EQ));
+    SETBOOLN(x3, BI(0, CR_EQ));
     BF_INSERT(xFlags, x3, F_CF, F_CF);
     BF_INSERT(xFlags, x3, F_OF, F_OF);
     if (!BOX64ENV(cputype)) {
@@ -1129,8 +1121,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x2, F_SF, F_SF);
     // ZF = (res == 0)
     CMPWI(x1, 0);
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LBZ(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1166,8 +1157,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x2, F_SF, F_SF);
     // ZF = (res == 0)
     CMPWI(x1, 0);
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LHZ(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1203,8 +1193,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x2, F_SF, F_SF);
     // ZF = (res == 0)
     CMPWI(x1, 0);
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LWZ(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1240,8 +1229,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x2, F_SF, F_SF);
     // ZF = (res == 0)
     CMPDI(x1, 0);
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LD(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1288,8 +1276,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     // ZF = (res & 0xff) == 0
     CMPWI(x1, 0);        // x1 was LBZ-range from LHZ, but low byte could be 0 with high byte nonzero
     ANDId(x5, x1, 0xff); // x5 = x1 & 0xff, sets CR0
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LBZ(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1337,8 +1324,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x5, F_SF, F_SF);
     // ZF = (res & 0xff) == 0
     ANDId(x5, x1, 0xff); // sets CR0
-    LI(x5, 1);
-    ISEL(x5, x5, 0, BI(0, CR_EQ));
+    SETBOOL(x5, BI(0, CR_EQ));
     BF_INSERT(xFlags, x5, F_ZF, F_ZF);
     // CC = (op1 & op2) | (~res & (op1 | op2))
     AND(x4, x2, x3);  // x4 = op1 & op2
@@ -1371,8 +1357,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x2, F_SF, F_SF);
     // ZF = (res & 0xffff) == 0
     ANDId(x5, x1, 0xffff); // sets CR0 — but ANDId only takes 16-bit immediate
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LHZ(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1420,8 +1405,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x5, F_SF, F_SF);
     // ZF = (res & 0xffff) == 0
     ANDId(x5, x1, 0xffff); // sets CR0
-    LI(x5, 1);
-    ISEL(x5, x5, 0, BI(0, CR_EQ));
+    SETBOOL(x5, BI(0, CR_EQ));
     BF_INSERT(xFlags, x5, F_ZF, F_ZF);
     // CC = (op1 & op2) | (~res & (op1 | op2))
     AND(x4, x2, x3);
@@ -1455,8 +1439,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     // ZF = (uint32_t)res == 0
     ZEROUP2(x5, x1); // x5 = (uint32_t)res
     CMPWI(x5, 0);
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2 (32-bit)
     LWZ(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1489,8 +1472,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x2, F_SF, F_SF);
     // ZF = (res == 0)
     CMPWI(x1, 0);
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LWZ(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1499,8 +1481,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     ADD(x4, x2, x3); // x4 = op1 + op2 (64-bit, but LWZ values fit 32 bits)
     ZEROUP(x4);      // x4 = (uint32_t)(op1+op2)
     CMPW(x1, x4);
-    LI(x4, 1);
-    ISEL(x4, 0, x4, BI(0, CR_EQ)); // x4 = carry_in: 0 if equal, 1 if not
+    SETBOOLN(x4, BI(0, CR_EQ)); // x4 = carry_in: 0 if equal, 1 if not
     // Recompute wider: x4 = carry_in + op1 + op2 (64-bit)
     ADD(x4, x4, x2);
     ADD(x4, x4, x3);
@@ -1535,8 +1516,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x2, F_SF, F_SF);
     // ZF = (res == 0)
     CMPDI(x1, 0);
-    LI(x2, 1);
-    ISEL(x2, x2, 0, BI(0, CR_EQ));
+    SETBOOL(x2, BI(0, CR_EQ));
     BF_INSERT(xFlags, x2, F_ZF, F_ZF);
     // Load op1, op2
     LD(x2, offsetof(x64emu_t, op1), xEmu);
@@ -1544,8 +1524,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     // Detect carry_in: if res == op1+op2, carry_in=0, else 1
     ADD(x4, x2, x3); // x4 = op1 + op2 (64-bit, may wrap)
     CMPD(x1, x4);
-    LI(x4, 1);
-    ISEL(x4, 0, x4, BI(0, CR_EQ)); // x4 = carry_in
+    SETBOOLN(x4, BI(0, CR_EQ)); // x4 = carry_in
     // Compute CF via hi/lo split:
     // lo = carry_in + (uint32_t)op1 + (uint32_t)op2
     ZEROUP2(x5, x2); // x5 = (uint32_t)op1
@@ -1638,8 +1617,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x4, F_SF, F_SF);
     // ZF = (res & 0xffff) == 0
     ANDId(x4, x1, 0xffff); // sets CR0
-    LI(x4, 1);
-    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    SETBOOL(x4, BI(0, CR_EQ));
     BF_INSERT(xFlags, x4, F_ZF, F_ZF);
     // PF
     emit_pf(dyn, ninst, x1, x4, x5);
@@ -1686,8 +1664,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x4, F_SF, F_SF);
     // ZF = (res == 0)
     CMPWI(x1, 0);
-    LI(x4, 1);
-    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    SETBOOL(x4, BI(0, CR_EQ));
     BF_INSERT(xFlags, x4, F_ZF, F_ZF);
     // PF
     emit_pf(dyn, ninst, x1, x4, x5);
@@ -1734,8 +1711,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x4, F_SF, F_SF);
     // ZF = (res == 0)
     CMPDI(x1, 0);
-    LI(x4, 1);
-    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    SETBOOL(x4, BI(0, CR_EQ));
     BF_INSERT(xFlags, x4, F_ZF, F_ZF);
     // PF
     emit_pf(dyn, ninst, x1, x4, x5);
@@ -1798,8 +1774,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x4, F_SF, F_SF);
     // ZF = (res & 0xffff) == 0
     ANDId(x4, x1, 0xffff); // sets CR0
-    LI(x4, 1);
-    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    SETBOOL(x4, BI(0, CR_EQ));
     BF_INSERT(xFlags, x4, F_ZF, F_ZF);
     // PF
     emit_pf(dyn, ninst, x1, x4, x5);
@@ -1845,8 +1820,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x4, F_SF, F_SF);
     // ZF = (res == 0)
     CMPWI(x1, 0);
-    LI(x4, 1);
-    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    SETBOOL(x4, BI(0, CR_EQ));
     BF_INSERT(xFlags, x4, F_ZF, F_ZF);
     // PF
     emit_pf(dyn, ninst, x1, x4, x5);
@@ -1892,8 +1866,7 @@ void updateflags_pass(dynarec_ppc64le_t* dyn, uint64_t jmp_df[])
     BF_INSERT(xFlags, x4, F_SF, F_SF);
     // ZF = (res == 0)
     CMPDI(x1, 0);
-    LI(x4, 1);
-    ISEL(x4, x4, 0, BI(0, CR_EQ));
+    SETBOOL(x4, BI(0, CR_EQ));
     BF_INSERT(xFlags, x4, F_ZF, F_ZF);
     // PF
     emit_pf(dyn, ninst, x1, x4, x5);

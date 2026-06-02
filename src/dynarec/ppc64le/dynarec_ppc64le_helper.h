@@ -2438,82 +2438,126 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // RLWINM(dst, dst, shift, 31, 31) extracts one bit to position 0.
 //   LT: shift=1, GT: shift=2, EQ: shift=3
 
+// On POWER10 (ISA 3.1) a single setbc/setbcr reads the CR0 bit directly,
+// replacing the MFCR + RLWINM (+ XORI) extraction used on POWER9.
+//   direct   condition: SETBC  (bit ? 1 : 0)
+//   inverted condition: SETBCR (bit ? 0 : 1)
 // Direct conditions: extract the relevant bit
-#define SLT_(dst, r1, r2)            \
-    do {                             \
-        CMPD_ZR(r1, r2);             \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 1, 31, 31); \
+#define SLT_(dst, r1, r2)                \
+    do {                                 \
+        CMPD_ZR(r1, r2);                 \
+        if (cpuext.isa31) {              \
+            SETBC(dst, BI(CR0, CR_LT));  \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 1, 31, 31); \
+        }                                \
     } while (0)
 
-#define SGT_(dst, r1, r2)            \
-    do {                             \
-        CMPD_ZR(r1, r2);             \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 2, 31, 31); \
+#define SGT_(dst, r1, r2)                \
+    do {                                 \
+        CMPD_ZR(r1, r2);                 \
+        if (cpuext.isa31) {              \
+            SETBC(dst, BI(CR0, CR_GT));  \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 2, 31, 31); \
+        }                                \
     } while (0)
 
-#define SEQ_(dst, r1, r2)            \
-    do {                             \
-        CMPD_ZR(r1, r2);             \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 3, 31, 31); \
+#define SEQ_(dst, r1, r2)                \
+    do {                                 \
+        CMPD_ZR(r1, r2);                 \
+        if (cpuext.isa31) {              \
+            SETBC(dst, BI(CR0, CR_EQ));  \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 3, 31, 31); \
+        }                                \
     } while (0)
 
 // Inverted conditions: extract the opposite bit and XOR with 1
-#define SGE_(dst, r1, r2)            \
-    do {                             \
-        CMPD_ZR(r1, r2);             \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 1, 31, 31); \
-        XORI(dst, dst, 1);           \
+#define SGE_(dst, r1, r2)                \
+    do {                                 \
+        CMPD_ZR(r1, r2);                 \
+        if (cpuext.isa31) {              \
+            SETBCR(dst, BI(CR0, CR_LT)); \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 1, 31, 31); \
+            XORI(dst, dst, 1);           \
+        }                                \
     } while (0)
 
-#define SLE_(dst, r1, r2)            \
-    do {                             \
-        CMPD_ZR(r1, r2);             \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 2, 31, 31); \
-        XORI(dst, dst, 1);           \
+#define SLE_(dst, r1, r2)                \
+    do {                                 \
+        CMPD_ZR(r1, r2);                 \
+        if (cpuext.isa31) {              \
+            SETBCR(dst, BI(CR0, CR_GT)); \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 2, 31, 31); \
+            XORI(dst, dst, 1);           \
+        }                                \
     } while (0)
 
-#define SNE_(dst, r1, r2)            \
-    do {                             \
-        CMPD_ZR(r1, r2);             \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 3, 31, 31); \
-        XORI(dst, dst, 1);           \
+#define SNE_(dst, r1, r2)                \
+    do {                                 \
+        CMPD_ZR(r1, r2);                 \
+        if (cpuext.isa31) {              \
+            SETBCR(dst, BI(CR0, CR_EQ)); \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 3, 31, 31); \
+            XORI(dst, dst, 1);           \
+        }                                \
     } while (0)
 
 // Unsigned variants use CMPLD
-#define SLTU_(dst, r1, r2)           \
-    do {                             \
-        CMPLD_ZR(r1, r2);            \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 1, 31, 31); \
+#define SLTU_(dst, r1, r2)               \
+    do {                                 \
+        CMPLD_ZR(r1, r2);                \
+        if (cpuext.isa31) {              \
+            SETBC(dst, BI(CR0, CR_LT));  \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 1, 31, 31); \
+        }                                \
     } while (0)
 
-#define SGTU_(dst, r1, r2)           \
-    do {                             \
-        CMPLD_ZR(r1, r2);            \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 2, 31, 31); \
+#define SGTU_(dst, r1, r2)               \
+    do {                                 \
+        CMPLD_ZR(r1, r2);                \
+        if (cpuext.isa31) {              \
+            SETBC(dst, BI(CR0, CR_GT));  \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 2, 31, 31); \
+        }                                \
     } while (0)
 
-#define SGEU_(dst, r1, r2)           \
-    do {                             \
-        CMPLD_ZR(r1, r2);            \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 1, 31, 31); \
-        XORI(dst, dst, 1);           \
+#define SGEU_(dst, r1, r2)               \
+    do {                                 \
+        CMPLD_ZR(r1, r2);                \
+        if (cpuext.isa31) {              \
+            SETBCR(dst, BI(CR0, CR_LT)); \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 1, 31, 31); \
+            XORI(dst, dst, 1);           \
+        }                                \
     } while (0)
 
-#define SLEU_(dst, r1, r2)           \
-    do {                             \
-        CMPLD_ZR(r1, r2);            \
-        MFCR(dst);                   \
-        RLWINM(dst, dst, 2, 31, 31); \
-        XORI(dst, dst, 1);           \
+#define SLEU_(dst, r1, r2)               \
+    do {                                 \
+        CMPLD_ZR(r1, r2);                \
+        if (cpuext.isa31) {              \
+            SETBCR(dst, BI(CR0, CR_GT)); \
+        } else {                         \
+            MFCR(dst);                   \
+            RLWINM(dst, dst, 2, 31, 31); \
+            XORI(dst, dst, 1);           \
+        }                                \
     } while (0)
 
 // S__: unconditional placeholder (dead code). Sets dst=1 unconditionally.
@@ -2883,6 +2927,36 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 #ifndef SCRATCH_USAGE
 #define SCRATCH_USAGE(usage)
 #endif
+
+// ========================================================================
+// Boolean materialization from a CR bit
+// ========================================================================
+// Produce a 0/1 GPR from a CR bit. On POWER10 (ISA 3.1) this is a single
+// setbc/setbcr; otherwise it falls back to the POWER9 "LI + ISEL" idiom
+// (preserved exactly, byte-for-byte, so POWER9 codegen is unchanged).
+//   SETBOOL(rt, bi)  : rt = CR[bi] ? 1 : 0
+//   SETBOOLN(rt, bi) : rt = CR[bi] ? 0 : 1
+// Note: the ISEL fallback for SETBOOLN uses RA=0 (literal zero); SETBOOL's
+// fallback matches the historical sequence used across the flag passes.
+#define SETBOOL(rt, bi)                 \
+    do {                                \
+        if (cpuext.isa31) {             \
+            SETBC(rt, bi);              \
+        } else {                        \
+            LI(rt, 1);                  \
+            ISEL(rt, rt, 0, bi);        \
+        }                               \
+    } while (0)
+
+#define SETBOOLN(rt, bi)                \
+    do {                                \
+        if (cpuext.isa31) {             \
+            SETBCR(rt, bi);             \
+        } else {                        \
+            LI(rt, 1);                  \
+            ISEL(rt, 0, rt, bi);        \
+        }                               \
+    } while (0)
 
 // ========================================================================
 // REVBxw — byte-reverse (BSWAP) for 32 or 64 bits
