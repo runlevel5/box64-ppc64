@@ -1821,12 +1821,16 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             INST_NAME("BSWAP Reg");
             gd = TO_NAT((opcode & 7) + (rex.b << 3));
             if (rex.w) {
-                // 64-bit byte swap
-                // Use XXBRD via VSX scratch register
-                q0 = fpu_get_scratch(dyn);
-                MTVSRD(VSXREG(q0), gd);
-                XXBRD(VSXREG(q0), VSXREG(q0));
-                MFVSRD(gd, VSXREG(q0));
+                if (cpuext.isa31) {
+                    // POWER10: single register-to-register byte reverse
+                    BRD(gd, gd);
+                } else {
+                    // 64-bit byte swap via XXBRD through a VSX scratch register
+                    q0 = fpu_get_scratch(dyn);
+                    MTVSRD(VSXREG(q0), gd);
+                    XXBRD(VSXREG(q0), VSXREG(q0));
+                    MFVSRD(gd, VSXREG(q0));
+                }
             } else {
                 // 16-bit operand size prefix + BSWAP = undefined behavior
                 // Modern x86 CPUs zero the low 16 bits

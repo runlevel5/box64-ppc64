@@ -2963,18 +2963,30 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // ========================================================================
 // Uses stack red zone + scratch register for store-load byte-reverse
 // Note: tmp is a scratch GPR
-#define REVBxw(Rd, Rs, tmp)      \
-    do {                         \
-        if (rex.w) {             \
-            STD(Rs, -8, xSP);    \
-            LI(tmp, -8);         \
-            LDBRX(Rd, xSP, tmp); \
-        } else {                 \
-            STW(Rs, -4, xSP);    \
-            LI(tmp, -4);         \
-            LWBRX(Rd, xSP, tmp); \
-            ZEROUP(Rd);          \
-        }                        \
+// On POWER10 (ISA 3.1), brd/brw byte-reverse register-to-register in a
+// single op, avoiding the POWER9 store-to-redzone + load-byte-reversed
+// round trip (and its store-forwarding latency). For the 32-bit form, brw
+// reverses the bytes within each word; ZEROUP clears the upper half to
+// match BSWAP's zero-extension.
+#define REVBxw(Rd, Rs, tmp)          \
+    do {                             \
+        if (cpuext.isa31) {          \
+            if (rex.w) {             \
+                BRD(Rd, Rs);         \
+            } else {                 \
+                BRW(Rd, Rs);         \
+                ZEROUP(Rd);          \
+            }                        \
+        } else if (rex.w) {          \
+            STD(Rs, -8, xSP);        \
+            LI(tmp, -8);             \
+            LDBRX(Rd, xSP, tmp);     \
+        } else {                     \
+            STW(Rs, -4, xSP);        \
+            LI(tmp, -4);             \
+            LWBRX(Rd, xSP, tmp);     \
+            ZEROUP(Rd);              \
+        }                            \
     } while (0)
 
 #endif //__DYNAREC_PPC64LE_HELPER_H__
