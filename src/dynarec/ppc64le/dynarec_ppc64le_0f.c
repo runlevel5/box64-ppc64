@@ -1602,7 +1602,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         MESSAGE(LOG_DUMP, "Need Optimization\n");
                         BARRIER(BARRIER_FLOAT);
                         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, NO_DISP, 0);
-                        MOV32w(x2, rex.w ? 0 : 1);
+                        MOV32w(x2, rex.is32bits);
                         CALL(const_fpu_xsave, -1, ed, x2);
                         break;
                     case 5:
@@ -1610,7 +1610,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         MESSAGE(LOG_DUMP, "Need Optimization\n");
                         BARRIER(BARRIER_FLOAT);
                         addr = geted(dyn, addr, ninst, nextop, &ed, x1, x2, &fixedaddress, rex, NULL, NO_DISP, 0);
-                        MOV32w(x2, rex.w ? 0 : 1);
+                        MOV32w(x2, rex.is32bits);
                         CALL(const_fpu_xrstor, -1, ed, x2);
                         break;
                     case 7:
