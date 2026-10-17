@@ -349,6 +349,13 @@ Skip N first CPU cores (Is apply before MAXCPU) 在 WowBox64 中可用。
  * 0: 不执行任何操作。 [默认值]
  * 1: 强制 BOX64_LD_PRELOAD 库中的符号通过 RTLD_NEXT 解析。
 
+### BOX64_GL_NOERROR
+
+Stub OpenGL error-checking calls (glGetError, glCheckFramebufferStatus[EXT], glStringMarkerGREMEDY) to speed up games that call them excessively.
+
+ * 0: Call the real OpenGL functions. [默认值]
+ * 1: glGetError always returns GL_NO_ERROR, glCheckFramebufferStatus[EXT] always returns GL_FRAMEBUFFER_COMPLETE and glStringMarkerGREMEDY is a no-op.
+
 ### BOX64_IGNOREINT3
 
 忽略 INT3 指令。
