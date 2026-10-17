@@ -2592,6 +2592,9 @@ int isInHotPage(uintptr_t addr)
     if(addr>0x1000000000000LL) return 0;
     if(BOX64ENV(dynarec_nohotpage))
         return 0;
+    // no live hotpage: nothing to find and nothing to tick down
+    if(!n_hpages_alive)
+        return 0;
     uintptr_t page = addr>>12;
     int idx = IdxHotPage(page);
     int ret = ((idx==-1) || !hotpage[idx].cnt)?0:1;
