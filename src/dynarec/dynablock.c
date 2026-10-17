@@ -526,6 +526,10 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
     if(db && db->done && db->block && getNeedTest(addr)) {
         //if (db->always_test) SchedYield(); // just calm down...
         uint32_t hash = X31_hash_code((void*)db->x64_readaddr, db->x64_size);
+        // NEVERCLEAN block, unchanged and not in a hotpage: there is nothing to update,
+        // so don't take the lock (the hash check itself is already done outside of it)
+        if(hash==db->hash && db->always_test==1 && !is_inhotpage)
+            return db;
         mutex_lock(&my_context->mutex_dyndump)?1:0;
         if(hash!=db->hash) {
             if (is_inhotpage) {
