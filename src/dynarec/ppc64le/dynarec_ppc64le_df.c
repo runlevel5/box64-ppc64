@@ -105,7 +105,7 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         switch ((nextop >> 3) & 7) {
             case 0:
                 INST_NAME("FILD ST0, Ew");
-                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
+                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, (BOX64ENV(dynarec_x87double) == 1) ? VMX_CACHE_ST_D : VMX_CACHE_ST_F);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x3, x4, &fixedaddress, rex, NULL, DS_DISP, 0);
                 LHZ(x1, fixedaddress, wback);
                 EXTSH(x1, x1);

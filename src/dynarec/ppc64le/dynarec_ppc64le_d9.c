@@ -185,7 +185,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 
             case 0xE8:
                 INST_NAME("FLD1");
-                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
+                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, (BOX64ENV(dynarec_x87double) == 1) ? VMX_CACHE_ST_D : VMX_CACHE_ST_F);
                 // Always load the double representation of 1.0 into the FPR.
                 // PPC64LE FPRs always hold doubles; using MTVSRWZ with the float
                 // bit pattern 0x3f800000 produces a denormal that underflows to 0.
@@ -219,7 +219,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 break;
             case 0xEE:
                 INST_NAME("FLDZ");
-                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
+                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, (BOX64ENV(dynarec_x87double) == 1) ? VMX_CACHE_ST_D : VMX_CACHE_ST_F);
                 // xZR is r0 on PPC64LE, NOT a true zero register
                 // Use LI to load 0 into a GPR, then move to FPR
                 LI(x1, 0);
@@ -256,7 +256,7 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 CALL_(const_native_ftan, -1, BOX64ENV(dynarec_fastround) ? 0 : u8, 0, 0);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 x87_unstackcount(dyn, ninst, x3, s0);
-                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, VMX_CACHE_ST_F);
+                X87_PUSH_OR_FAIL(v1, dyn, ninst, x1, (BOX64ENV(dynarec_x87double) == 1) ? VMX_CACHE_ST_D : VMX_CACHE_ST_F);
                 // Always load double 1.0, same fix as FLD1 above
                 MOV64x(x1, 0x3FF0000000000000);
                 MTVSRD(VSXREG_X87(v1), x1);

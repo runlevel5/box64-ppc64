@@ -87,6 +87,20 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
         case 0x05:
             INST_NAME("SYSCALL");
+            if (rex.is32bits) {
+                // SYSCALL is not valid in 32-bit mode
+                if (BOX64DRENV(dynarec_safeflags) > 1) {
+                    READFLAGS(X_PEND);
+                } else {
+                    SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION); // Hack to set flags in "don't care" state
+                }
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
+                break;
+            }
             NOTEST(x1);
             SMEND();
             GETIP(addr, x7);
@@ -239,16 +253,16 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
         case 0x13:
             nextop = F8;
-            INST_NAME("MOVLPS Ex, Gx");
-            GETGX(v0, 0);
             if (MODREG) {
-                v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
-                // Copy low qword of Gx to low qword of Ex
-                // x86 low = ISA dw1
-                MFVSRLD(x4, VSXREG(v0)); // x4 = ISA dw1 = x86 low of Gx
-                MFVSRD(x5, VSXREG(v1));  // x5 = ISA dw0 = x86 high of Ex (preserve)
-                MTVSRDD(VSXREG(v1), x5, x4);
+                INST_NAME("Illegal 0F 13");
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
             } else {
+                INST_NAME("MOVLPS Ex, Gx");
+                GETGX(v0, 0);
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DS_DISP, 0);
                 // Store low qword (ISA dw1) of Gx to memory
                 MFVSRLD(x4, VSXREG(v0));
@@ -298,16 +312,16 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
         case 0x17:
             nextop = F8;
-            INST_NAME("MOVHPS Ex, Gx");
-            GETGX(v0, 0);
             if (MODREG) {
-                v1 = sse_get_reg(dyn, ninst, x1, (nextop & 7) + (rex.b << 3), 1);
-                // MOVHPS Ex, Gx: store Gx[127:64] to memory; reg-reg form copies Gx.high to Ex.low
-                // ISA dw0(Gx) → ISA dw1(Ex), ISA dw0(Ex) unchanged
-                MFVSRD(x4, VSXREG(v0));      // x4 = ISA dw0 = x86 high of Gx
-                MFVSRD(x5, VSXREG(v1));      // x5 = ISA dw0 = x86 high of Ex (preserve)
-                MTVSRDD(VSXREG(v1), x5, x4); // dw0=high preserved, dw1=Gx.high
+                INST_NAME("Illegal 0F 17");
+                GETIP(ip, x7);
+                BARRIER(BARRIER_FLOAT);
+                UDF();
+                *need_epilog = 1;
+                *ok = 0;
             } else {
+                INST_NAME("MOVHPS Ex, Gx");
+                GETGX(v0, 0);
                 addr = geted(dyn, addr, ninst, nextop, &ed, x2, x3, &fixedaddress, rex, NULL, DS_DISP, 0);
                 // Store high qword (ISA dw0) of Gx to memory
                 MFVSRD(x4, VSXREG(v0));
@@ -1343,6 +1357,12 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             INST_NAME("EMMS");
             // empty MMX, FPU now usable
             mmx_purgecache(dyn, ninst, 0, x1);
+            x87_purgecache(dyn, ninst, 0, x1, x2, x3); // also purge x87 and hard reset it
+            LI(x1, 0);
+            STW(x1, offsetof(x64emu_t, top), xEmu);
+            STW(x1, offsetof(x64emu_t, fpu_stack), xEmu);
+            MOV32w(x1, TAGS_EMPTY);
+            STD(x1, offsetof(x64emu_t, fpu_tags), xEmu);
             break;
 
         case 0x7E:
@@ -1962,8 +1982,9 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             gd = x2;
             ed = x1;
             emit_add8(dyn, ninst, ed, gd, x4, x5, x3, x6);
-            GBBACK();
-            EBBACK();
+            EBBACK(); // Eb writeback must be done first, as Gb writeback can clobber the address register
+            if (!(MODREG && wback == gb1 && wb2 == gb2))
+                GBBACK();
             break;
         case 0xC1:
             INST_NAME("XADD Ed, Gd");

@@ -1656,9 +1656,11 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             MV(x7, ed);
             emit_add16(dyn, ninst, ed, gd, x4, x5, x6, x3);
             EWBACK;
-            // gd gets old ed value
-            MV(gd, x7);
-            GWBACK;
+            // gd gets old ed value (unless Ew and Gw are the same register: it already holds the sum)
+            if (!(MODREG && gd == ed)) {
+                MV(gd, x7);
+                GWBACK;
+            }
             break;
 
         case 0xC2:
@@ -3941,7 +3943,8 @@ uintptr_t dynarec64_660F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                     MV(x4, xRAX);
                     u8 = F8;
                     MOV32w(x5, u8);
-                    CALL6(const_sse42_compare_string_explicit_len, x1, ed, x2, x3, x4, x5, 0);
+                    LI(x7, rex.w);
+                    CALL6(const_sse42_compare_string_explicit_len, x1, ed, x2, x3, x4, x5, x7);
                     ZEROUP(x1);
                     BNEZ_MARK(x1);
                     MOV32w(xRCX, (u8 & 1) ? 8 : 16);

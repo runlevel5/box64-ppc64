@@ -603,6 +603,8 @@ void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex)
 
 void iret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, int is32bits, int is64bits)
 {
+    int64_t j64;
+    MAYUSE(j64);
     MAYUSE(ninst);
     MESSAGE(LOG_DUMP, "IRet to next\n");
     if (is64bits) {
@@ -638,8 +640,16 @@ void iret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, int is32bits,
     rex_t dummy = { 0 };
     dummy.is32bits = is32bits;
     dummy.w = is64bits;
+    // with TF set, don't link to the next block: flag it and go back through the epilog
+    ANDId(x1, xFlags, 1 << F_TF);
+    BNEZ_MARK2(x1);
     ret_to_next(dyn, ip, ninst, dummy);
     CLEARIP();
+    MARK2;
+    LWZ(x4, offsetof(x64emu_t, flags), xEmu);
+    ORI(x4, x4, 1 << FLAGS_NO_TF);
+    STW(x4, offsetof(x64emu_t, flags), xEmu);
+    jump_to_epilog(dyn, 0, xRIP, ninst);
 }
 
 // ========================================================================
@@ -2444,9 +2454,9 @@ static void fpuCacheTransform(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2,
             }
         }
     }
-    if (stack_cnt != cache_i2.stack) {
-        MESSAGE(LOG_DUMP, "\t    - adjust stack count %d -> %d -\n", stack_cnt, cache_i2.stack);
-        int a = stack_cnt - cache_i2.stack;
+    if (stack_cnt != cache_i2.stack || dyn->v.x87stack != cache_i2.x87stack) {
+        MESSAGE(LOG_DUMP, "\t    - adjust stack count %d -> %d / pending %d -> %d -\n", stack_cnt, cache_i2.stack, dyn->v.x87stack, cache_i2.x87stack);
+        int a = dyn->v.x87stack - cache_i2.x87stack;
         // Add x87stack to emu fpu_stack
         LWZ(s3, offsetof(x64emu_t, fpu_stack), xEmu);
         ADDI(s3, s3, a);
@@ -2478,7 +2488,7 @@ static void flagsCacheTransform(dynarec_ppc64le_t* dyn, int ninst, int s1)
     int jmp = dyn->insts[ninst].x64.jmp_insts;
     if (jmp < 0)
         return;
-    if (dyn->insts[jmp].f_exit == dyn->insts[jmp].f_entry) // flags will be fully known, nothing we can do more
+    if (dyn->insts[ninst].f_exit == dyn->insts[jmp].f_entry) // flags will be fully known, nothing we can do more
         return;
     MESSAGE(LOG_DUMP, "\tFlags fetch ---- ninst=%d -> %d\n", ninst, jmp);
     int go_fetch = 0;
