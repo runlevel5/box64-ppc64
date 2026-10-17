@@ -179,9 +179,9 @@ extern void* create_updateflags();
 
 #define ARCH_NOP    0x60000000  /* ori 0,0,0 */
 #define ARCH_UDF    0x00000000  /* illegal instruction (all zeros) */
-// PPC64LE CreateJmpNext needs 5 instructions (20 bytes) for PC-relative load + branch,
-// so the jmpnext area needs 5 void* slots (40 bytes) instead of the default 4 (32 bytes).
-#define JMPNEXT_SIZE    (5*sizeof(void*))
+// CreateJmpNext is 4 instructions (16 bytes), same layout as the other backends
+// (block ptr, code, target ptr), which the dynacache loader relies on.
+#define JMPNEXT_SIZE    (4*sizeof(void*))
 #define ADDITIONNAL_CHECKS()
 #define PRINT_OPCODE(C, A)  ppc64le_print(C, A)
 
