@@ -1641,6 +1641,8 @@
 #define jump_to_epilog_fast STEPNAME(jump_to_epilog_fast)
 #define jump_to_next        STEPNAME(jump_to_next)
 #define ret_to_next         STEPNAME(ret_to_next)
+#define doEnterBlock        STEPNAME(doEnterBlock)
+#define doLeaveBlock        STEPNAME(doLeaveBlock)
 #define iret_to_next        STEPNAME(iret_to_next)
 #define call_c              STEPNAME(call_c)
 #define call_n              STEPNAME(call_n)
@@ -1817,6 +1819,10 @@ void jump_to_epilog(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst);
 void jump_to_epilog_fast(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst);
 void jump_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst, int is32bits);
 void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex);
+// Enter a block (atomic increment of in_used)
+void doEnterBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3);
+// Leave a block (atomic decrement of in_used)
+void doLeaveBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3);
 void iret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, int is32bits, int is64bits);
 void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, int ret, int saveflags, int save_reg, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
 void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w);

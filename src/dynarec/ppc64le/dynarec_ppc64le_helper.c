@@ -416,6 +416,8 @@ void jump_to_epilog(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst)
     TABLE64C(x2, const_epilog);
     SMEND();
     CHECK_DFNONE(0);
+    if (BOX64DRENV(dynarec_callret) >= 2)
+        doLeaveBlock(dyn, ninst, x4, x5, x6);
     MTCTR(x2);
     BCTR();
 }
@@ -438,8 +440,46 @@ void jump_to_epilog_fast(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int nins
     TABLE64C(x2, const_epilog);
     SMEND();
     CHECK_DFNONE(0);
+    if (BOX64DRENV(dynarec_callret) >= 2)
+        doLeaveBlock(dyn, ninst, x4, x5, x6);
     MTCTR(x2);
     BCTR();
+}
+
+// Enter a block: atomic increment of the dynablock in_used counter.
+// The dynablock_t* is stored right before the start of the block; reach it PC-relative.
+void doEnterBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
+{
+    MAYUSE(s3);
+    MESSAGE(LOG_DUMP, "doEnter --------\n");
+    int delta = -(dyn->native_size + sizeof(void*)) - 4; // from the MFLR below (BCL+4) to the dynablock_t*
+    BCL(20, 31, 4);
+    MFLR(s1);
+    ADDIS(s1, s1, PPC64_HI16(delta));
+    LD(s1, PPC64_LO16(delta), s1);
+    ADDI(s1, s1, offsetof(dynablock_t, in_used));
+    LWARX(s2, 0, s1);
+    ADDI(s2, s2, 1);
+    STWCXd(s2, 0, s1);
+    BNE(-3 * 4);
+    MESSAGE(LOG_DUMP, "-------- doEnter\n");
+}
+// Leave a block: atomic decrement of in_used
+void doLeaveBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
+{
+    MAYUSE(s3);
+    MESSAGE(LOG_DUMP, "doLeave --------\n");
+    int delta = -(dyn->native_size + sizeof(void*)) - 4;
+    BCL(20, 31, 4);
+    MFLR(s1);
+    ADDIS(s1, s1, PPC64_HI16(delta));
+    LD(s1, PPC64_LO16(delta), s1);
+    ADDI(s1, s1, offsetof(dynablock_t, in_used));
+    LWARX(s2, 0, s1);
+    ADDI(s2, s2, -1);
+    STWCXd(s2, 0, s1);
+    BNE(-3 * 4);
+    MESSAGE(LOG_DUMP, "-------- doLeave\n");
 }
 
 // indirect_lookup: resolve x86-64 address through the jump table hierarchy
@@ -513,6 +553,8 @@ void jump_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst, int 
     }
     CLEARIP();
     SMEND();
+    if (BOX64DRENV(dynarec_callret) >= 2 && !dyn->insts[ninst].x64.has_callret)
+        doLeaveBlock(dyn, ninst, x4, x5, x6);
     // Branch to resolved target: use BCTRL for call-ret, BCTR otherwise
 #ifdef HAVE_TRACE
     MTCTR(dest);
@@ -540,6 +582,8 @@ void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex)
         LD(x4, 0, xSP);       // native addr
         LD(x6, 8, xSP);       // x86 addr
         ADDI(xSP, xSP, 16);   // pop
+        if (BOX64DRENV(dynarec_callret) >= 2)
+            doLeaveBlock(dyn, ninst, x5, x7, x3);
         // is it the right address?
         CMPD(x6, xRIP);
         BNE(3 * 4);
