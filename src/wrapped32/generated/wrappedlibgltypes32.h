@@ -13,6 +13,8 @@
 #endif
 
 typedef int32_t (*iFi_t)(int32_t);
+typedef uint32_t (*uFv_t)(void);
+typedef uint32_t (*uFu_t)(uint32_t);
 typedef void* (*pFp_t)(void*);
 typedef void (*vFip_t)(int32_t, void*);
 typedef void (*vFpp_t)(void*, void*);
@@ -35,9 +37,13 @@ typedef void (*vFppupui_t)(void*, void*, uint32_t, void*, uint32_t, int32_t);
 
 #define SUPER() ADDED_FUNCTIONS() \
 	GO(glXSwapIntervalMESA, iFi_t) \
+	GO(glGetError, uFv_t) \
+	GO(glCheckFramebufferStatus, uFu_t) \
+	GO(glCheckFramebufferStatusEXT, uFu_t) \
 	GO(glGetVkProcAddrNV, pFp_t) \
 	GO(glXGetProcAddress, pFp_t) \
 	GO(glXGetProcAddressARB, pFp_t) \
+	GO(glStringMarkerGREMEDY, vFip_t) \
 	GO(glVDPAUMapSurfacesNV, vFip_t) \
 	GO(glVDPAUUnmapSurfacesNV, vFip_t) \
 	GO(glDebugMessageCallback, vFpp_t) \

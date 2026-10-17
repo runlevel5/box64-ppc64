@@ -335,6 +335,8 @@ void CFpp_32(x64emu_t *emu, uintptr_t fnc);
 void CFXL_32(x64emu_t *emu, uintptr_t fnc);
 void WFEp_32(x64emu_t *emu, uintptr_t fnc);
 void WFpp_32(x64emu_t *emu, uintptr_t fnc);
+void uFEv_32(x64emu_t *emu, uintptr_t fnc);
+void uFEu_32(x64emu_t *emu, uintptr_t fnc);
 void uFEp_32(x64emu_t *emu, uintptr_t fnc);
 void uFii_32(x64emu_t *emu, uintptr_t fnc);
 void uEiS_32(x64emu_t *emu, uintptr_t fnc);
