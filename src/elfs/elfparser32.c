@@ -294,6 +294,10 @@ elfheader_t* ParseElfHeader32(FILE* f, const char* name, int exec)
                     h->flags |= DF_BIND_NOW;
                     printf_log(LOG_DEBUG, "The DT_BIND_NOW flag is present\n");
                     break;
+                case DT_TEXTREL:
+                    h->flags |= DF_TEXTREL;
+                    printf_log(LOG_DEBUG, "The DT_TEXTREL flag is present\n");
+                    break;
                 case DT_FLAGS_1:
                     if(val & DF_1_NOW)
                         h->flags |= DF_BIND_NOW;

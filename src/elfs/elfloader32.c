@@ -216,7 +216,10 @@ int AllocLoadElfMemory32(box64context_t* context, elfheader_t* head, int mainbin
             head->multiblocks[n].paddr = e->p_vaddr + offs;
             head->multiblocks[n].size = e->p_filesz;
             head->multiblocks[n].align = e->p_align;
-            uint8_t prot = PROT_READ|PROT_WRITE|((e->p_flags & PF_X)?PROT_EXEC:0);
+            // like the 64-bit loader, honor the segment flags: on large-page hosts, text recorded as
+            // writable can never be write-protected, so all its blocks stay NEVERCLEAN forever.
+            // Objects with text relocations still need everything writable.
+            uint8_t prot = ((e->p_flags & PF_R)?PROT_READ:0)|(((e->p_flags & PF_W) || (head->flags & DF_TEXTREL) || box64_unittest_mode)?PROT_WRITE:0)|((e->p_flags & PF_X)?PROT_EXEC:0);
             head->multiblocks[n].asize = (e->p_memsz + (e->p_vaddr & (box64_pagesize - 1)) + (box64_pagesize - 1)) & ~(box64_pagesize - 1);
             int try_mmap = 1;
             if(e->p_vaddr&(box64_pagesize - 1))
