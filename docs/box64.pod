@@ -520,6 +520,14 @@ Force symbols from BOX64_LD_PRELOAD libraries to be resolved by RTLD_NEXT.
  * 1 : Force symbols from BOX64_LD_PRELOAD libraries to be resolved by RTLD_NEXT. 
 
 
+=item B<BOX64_GL_NOERROR> =I<0|1>
+
+Stub OpenGL error-checking calls (glGetError, glCheckFramebufferStatus[EXT], glStringMarkerGREMEDY) to speed up games that call them excessively.
+
+ * 0 : Call the real OpenGL functions. [Default]
+ * 1 : glGetError always returns GL_NO_ERROR, glCheckFramebufferStatus[EXT] always returns GL_FRAMEBUFFER_COMPLETE and glStringMarkerGREMEDY is a no-op. 
+
+
 =item B<BOX64_IGNOREINT3> =I<0|1>
 
 Ignore INT3 instructions.
