@@ -622,9 +622,14 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
         STD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     }
     fpu_pushcache(dyn, ninst, reg, 0);
+    // ELFv2 ABI: the callee saves LR/CR into the *caller's* frame header (16(r1)/8(r1))
+    // and may home its arguments into the caller's parameter save area (32..95(r1)).
+    // With CALLRET, the top of the native stack holds shadow return addresses, so a
+    // full frame is needed here (not just a 16-byte bump), or they get clobbered.
+    // Layout: 0=backchain, 8=CR, 16=LR, 24=TOC, 32..95=param save area, 96=savereg
+    STDU(xSP, -112, xSP);
     if (ret != -2) {
-        ADDI(xSP, xSP, -16); // PPC64LE stack needs to be 16byte aligned
-        STD(savereg, 0, xSP);
+        STD(savereg, 96, xSP);
         STORE_REG(RDI);
         STORE_REG(RSI);
         STORE_REG(RDX);
@@ -662,8 +667,7 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
         MV(ret, A0);
     }
     if (ret != -2) {
-        LD(savereg, 0, xSP);
-        ADDI(xSP, xSP, 16);
+        LD(savereg, 96, xSP);
 #define GO(A) \
     if (ret != x##A) { LOAD_REG(A); }
         GO(RDI);
@@ -680,6 +684,7 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
             LD(xRIP, offsetof(x64emu_t, ip), xEmu);
 #undef GO
     }
+    ADDI(xSP, xSP, 112);
 
     fpu_popcache(dyn, ninst, reg, 0);
     if (saveflags) {
@@ -726,7 +731,12 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
     // ELFv2 ABI: r12 must be set to the function entry address
     MR(12, x7);
     MTCTR(x7);
+    // ELFv2 ABI: the callee saves LR/CR into the caller's frame header and varargs
+    // callees (e.g. printf) home r3-r10 into the caller's parameter save area, so a
+    // full frame is required, else the CALLRET shadow stack on top of r1 is clobbered.
+    STDU(xSP, -96, xSP);
     BCTRL();
+    ADDI(xSP, xSP, 96);
     // put return value in x64 regs
     if (w > 0) {
         MV(xRAX, A0);
