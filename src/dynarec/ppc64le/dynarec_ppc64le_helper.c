@@ -761,6 +761,7 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
 {
     MAYUSE(fnc);
     CHECK_DFNONE(1);
+    STD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     fpu_pushcache(dyn, ninst, x3, 1);
     // Save x86 regs that the native function might modify via re-entrant emulation.
     // On PPC64LE, x86 regs are in callee-saved r14-r29, so the native function preserves
@@ -808,6 +809,7 @@ void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
     LD(xRBP, offsetof(x64emu_t, regs[_BP]), xEmu);
     LD(xRBX, offsetof(x64emu_t, regs[_BX]), xEmu);
     fpu_popcache(dyn, ninst, x3, 1);
+    LD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     NATIVE_RESTORE_X87PC();
     // SET_NODF();
 }
