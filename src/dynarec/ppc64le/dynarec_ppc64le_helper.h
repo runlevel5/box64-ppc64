@@ -232,8 +232,7 @@
 #define SLLIy(Rd, Rs, imm)              \
     do {                                \
         if (rex.is32bits || rex.is67) { \
-            SLWI(Rd, Rs, imm);          \
-            ZEROUP(Rd);                 \
+            SLWI(Rd, Rs, imm); /* rlwinm: already zero-extended */ \
         } else                          \
             SLDI(Rd, Rs, imm);          \
     } while (0)
@@ -272,6 +271,20 @@
                 ADD(rd, rd, rk);                                  \
             }                                                     \
         }                                                         \
+    } while (0)
+
+// SLADD without the 32-bit truncation: for an intermediate value that a later y-op truncates anyway
+#define SLADD_notrunc(rd, rj, rk, imm) \
+    do {                               \
+        if ((imm) == 0) {              \
+            ADD(rd, rj, rk);           \
+        } else if ((rd) == (rk)) {     \
+            SLDI(0, rj, imm);          \
+            ADD(rd, 0, rk);            \
+        } else {                       \
+            SLDI(rd, rj, imm);         \
+            ADD(rd, rd, rk);           \
+        }                              \
     } while (0)
 
 // ADDy: add, conditional 32/64

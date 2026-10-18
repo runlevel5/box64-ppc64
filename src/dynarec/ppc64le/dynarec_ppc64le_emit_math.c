@@ -63,7 +63,7 @@ void emit_add32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     if (dyn->insts[ninst].nat_flags_fusion && dyn->insts[ninst].nat_flags_needcarry) {
         MV(s6, s1);
     }
-    ADDxw(s1, s1, s2);
+    ADD(s1, s1, s2); // the zero-up is handled by ZEROUP32_RESULT below
 
     IFX (X_PEND) {
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
@@ -171,9 +171,9 @@ void emit_add32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         MV(s6, s1);
     }
     if (c >= -32768 && c < 32768) {
-        ADDIxw(s1, s1, c);
+        ADDI(s1, s1, c);
     } else {
-        ADDxw(s1, s1, s2);
+        ADD(s1, s1, s2); // the zero-up is handled by ZEROUP32_RESULT below
     }
 
     IFX (X_PEND) {
@@ -583,7 +583,7 @@ void emit_sub32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     if (dyn->insts[ninst].nat_flags_fusion && dyn->insts[ninst].nat_flags_needcarry) {
         MV(s6, s1);
     }
-    SUBxw(s1, s1, s2);
+    SUB(s1, s1, s2); // the zero-up is handled by ZEROUP32_RESULT below
     IFX (X_PEND) {
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
     }
@@ -627,7 +627,7 @@ void emit_sub32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
             ADDI(s1, s1, -c);
         } else {
             MOV64xw(s2, c);
-            SUBxw(s1, s1, s2);
+            SUB(s1, s1, s2); // the zero-up is handled by ZEROUP32_RESULT below
         }
         if (!rex.w) ZEROUP32_RESULT(s1);
         return;
@@ -658,9 +658,9 @@ void emit_sub32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t c
         MV(s6, s1);
     }
     if (c > -32768 && c <= 32768) {
-        ADDIxw(s1, s1, -c);
+        ADDI(s1, s1, -c);
     } else {
-        SUBxw(s1, s1, s2);
+        SUB(s1, s1, s2); // the zero-up is handled by ZEROUP32_RESULT below
     }
 
     IFX (X_PEND) {
@@ -812,9 +812,9 @@ void emit_sbb32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         NOT(s5, s1);
     }
 
-    SUBxw(s1, s1, s2);
+    SUB(s1, s1, s2); // the zero-up is handled by ZEROUP32_RESULT below
     ANDId(s3, xFlags, 1 << F_CF);
-    SUBxw(s1, s1, s3);
+    SUB(s1, s1, s3);
 
     CLEAR_FLAGS(s3);
     IFX (X_SF) {
@@ -1217,9 +1217,9 @@ void emit_adc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         AND(s5, s1, s2); // s5 = op1 & op2
     }
 
-    ADDxw(s1, s1, s2);
+    ADD(s1, s1, s2); // the zero-up is handled by ZEROUP32_RESULT below
     ANDId(s3, xFlags, 1 << F_CF);
-    ADDxw(s1, s1, s3);
+    ADD(s1, s1, s3);
 
     IFX (X_PEND) {
         SDxw(s1, xEmu, offsetof(x64emu_t, res));
@@ -1391,7 +1391,7 @@ void emit_inc32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         ANDId(s5, s1, 1); // s5 = op1 & op2
     }
 
-    ADDIxw(s1, s1, 1);
+    ADDI(s1, s1, 1);
 
     IFX (X_AF | X_OF) {
         ANDC(s3, s3, s1); // s3 = ~res & (op1 | op2)
@@ -1550,7 +1550,7 @@ void emit_dec32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
         ANDId(s5, s5, 1); // s5 = ~op1 & op2
     }
 
-    ADDIxw(s1, s1, -1);
+    ADDI(s1, s1, -1);
     IFX (X_ALL) {
         // preserving CF
         MOV64x(s4, (1UL << F_AF) | (1UL << F_OF) | (1UL << F_ZF) | (1UL << F_SF) | (1UL << F_PF));
