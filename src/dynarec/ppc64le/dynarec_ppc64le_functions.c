@@ -21,6 +21,8 @@
 #include "x64trace.h"
 #include "signals.h"
 #include "dynarec_native.h"
+#include "dynablock.h"
+#include "../dynablock_private.h"
 #include "dynarec_ppc64le_private.h"
 #include "dynarec_ppc64le_functions.h"
 #include "custommem.h"
@@ -936,5 +938,21 @@ void updateYmm0s(dynarec_ppc64le_t* dyn, int ninst, int max_ninst_reached)
             ok = 0;
         }
         ++ninst;
+    }
+}
+
+// The callret shadow stack (pairs {native return address, x86 return address} that CALL pushes
+// on the native stack) is about to be discarded: native_epilog, or a RET whose return address
+// did not match. A CALL leaves its block "in use" (doEnterBlock without doLeaveBlock) so that the
+// callee can safely return into it; release those blocks now, otherwise they stay in the orphan
+// list forever (with a JIT-heavy guest on 64K pages that was 100k+ blocks and a 20% CPU walk).
+void ppc64le_shadow_purge(x64emu_t* emu, uintptr_t sp)
+{
+    if (BOX64ENV(dynarec_callret) < 2) return;
+    uintptr_t top = emu->xSPSave;
+    for (uintptr_t p = sp; p + 2 * sizeof(uintptr_t) <= top; p += 2 * sizeof(uintptr_t)) {
+        dynablock_t* db = FindDynablockFromNativeAddress(*(void**)p);
+        if (!db) break; // not a shadow entry (a C frame was below): nothing more to release
+        __atomic_fetch_sub(&db->in_used, 1, __ATOMIC_ACQ_REL);
     }
 }

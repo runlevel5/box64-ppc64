@@ -590,8 +590,13 @@ void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex)
         // yes — branch to cached native return address
         MTCTR(x4);
         BCTR();
-        // not the correct return address, regular jump, but purge the stack first
-        // Load the saved frame SP from emu->xSPSave (r12 is no longer xSavedSP)
+        // not the correct return address, regular jump, but purge the stack first:
+        // release the blocks kept in use by the pending returns, then reset the native SP
+        if (BOX64DRENV(dynarec_callret) >= 2) {
+            MV(x3, xSP);
+            CALL_(const_ppc64le_shadow_purge, -1, 0, x3, 0);
+            MVz(x1, xRIP);
+        }
         LD(xSP, offsetof(x64emu_t, xSPSave), xEmu);
     }
     NOTEST(x2);

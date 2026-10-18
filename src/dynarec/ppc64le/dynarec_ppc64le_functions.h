@@ -93,6 +93,7 @@ void fpu_reset_ninst(dynarec_native_t* dyn, int ninst);
 int fpu_is_st_freed(dynarec_native_t* dyn, int ninst, int st);
 
 // propagate FPU_BARRIER to trigger it as soon as possible (avoiding fetching an FPU reg if it's unused)
+void ppc64le_shadow_purge(x64emu_t* emu, uintptr_t sp);
 void propagateFpuBarrier(dynarec_ppc64le_t* dyn);
 
 // propagate the unneeded flags on XMM/YMM regs (done between step 0 and step 1)
