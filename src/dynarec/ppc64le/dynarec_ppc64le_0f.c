@@ -1646,6 +1646,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             INST_NAME("IMUL Gd, Ed");
             SETFLAGS(X_ALL, SF_SET, NAT_FLAGS_NOFUSION);
             nextop = F8;
+            UP32_AGNOSTIC();
             GETGD;
             GETED(0);
             CLEAR_FLAGS(x3);
@@ -1681,7 +1682,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 } else {
                     MULLW(gd, gd, ed);
                 }
-                ZEROUP(gd);
+                ZEROUP32_RESULT(gd);
             }
             IFX (X_SF) {
                 SRDI(x3, gd, rex.w ? 63 : 31);
@@ -1730,7 +1731,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0xB6:
             INST_NAME("MOVZX Gd, Eb");
             nextop = F8;
+            UP32_AGNOSTIC();
             GETGD;
+            MARKREGd(gd);
+            UP32_ZERO(gd); // rldicl/lbz: zero-extended
             SCRATCH_USAGE(0);
             if (MODREG) {
                 if (rex.rex) {
@@ -1751,7 +1755,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0xB7:
             INST_NAME("MOVZX Gd, Ew");
             nextop = F8;
+            UP32_AGNOSTIC();
             GETGD;
+            MARKREGd(gd);
+            UP32_ZERO(gd); // rldicl/lhz: zero-extended
             if (MODREG) {
                 ed = TO_NAT((nextop & 7) + (rex.b << 3));
                 RLDICL(gd, ed, 0, 48);
@@ -1938,6 +1945,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         case 0xBE:
             INST_NAME("MOVSX Gd, Eb");
             nextop = F8;
+            UP32_AGNOSTIC();
             GETGD;
             if (MODREG) {
                 if (rex.rex) {
@@ -1956,11 +1964,15 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 LBZ(gd, fixedaddress, ed);
                 EXTSB(gd, gd);
             }
-            if (!rex.w) ZEROUP(gd);
+            if (!rex.w)
+                ZEROUP32_RESULT(gd);
+            else
+                UP32_WRITE64(gd);
             break;
         case 0xBF:
             INST_NAME("MOVSX Gd, Ew");
             nextop = F8;
+            UP32_AGNOSTIC();
             GETGD;
             if (MODREG) {
                 ed = TO_NAT((nextop & 7) + (rex.b << 3));
@@ -1970,7 +1982,10 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 addr = geted(dyn, addr, ninst, nextop, &ed, x3, x1, &fixedaddress, rex, NULL, DS_DISP, 0);
                 LHA(gd, fixedaddress, ed);
             }
-            if (!rex.w) ZEROUP(gd);
+            if (!rex.w)
+                ZEROUP32_RESULT(gd);
+            else
+                UP32_WRITE64(gd);
             break;
 
         case 0xC0:
