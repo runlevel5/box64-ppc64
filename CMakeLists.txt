@@ -506,6 +506,7 @@ endif()
 if(BOX32)
     list(APPEND ELFLOADER_SRC
         "${BOX64_ROOT}/src/box32.c"
+        "${BOX64_ROOT}/src/tools/gamehooks32.c"
         "${BOX64_ROOT}/src/elfs/elfhash32.c"
         "${BOX64_ROOT}/src/elfs/elfloader32.c"
         "${BOX64_ROOT}/src/elfs/elfparser32.c"
