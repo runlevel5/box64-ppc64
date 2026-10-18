@@ -30,6 +30,7 @@
 #include "gdbjit.h"
 #include "perfmap.h"
 #include "elfloader.h"
+#include "ppc64le_mapping.h"
 
 #define XMM0 0
 #define X870 XMM0 + 16
@@ -955,4 +956,153 @@ void ppc64le_shadow_purge(x64emu_t* emu, uintptr_t sp)
         if (!db) break; // not a shadow entry (a C frame was below): nothing more to release
         __atomic_fetch_sub(&db->in_used, 1, __ATOMIC_ACQ_REL);
     }
+}
+
+// ---- upper-32 tracking -------------------------------------------------------
+// In 32-bit mode every result has to be zero-extended (clrldi) so that the register
+// holds a clean 64-bit value, but most results are only ever consumed by other 32-bit
+// operations. An instruction that marked itself UP32_AGNOSTIC() declares the GPRs whose
+// upper bits it really reads (up32_read: 64-bit sources, address registers) and the GPRs
+// it writes (up32_write32/64). A backward liveness pass finds the 32-bit writes whose upper
+// bits are never observed before the register is rewritten (up32_skip), and a forward pass
+// computes the registers with stale upper bits at entry of each instruction (up32_pending),
+// used by adjust_arch to clean them when a signal interrupts the block.
+// Instructions that did not opt in are assumed to read every upper half, so they never see a
+// stale register: a skip only happens when the next observer of the register is an opted-in
+// 64-bit write. The stack pointer is never skipped (it is used as a native address).
+static int hasLinearPredecessor(const dynarec_ppc64le_t* dyn, int ninst)
+{
+    return ninst > 0 && dyn->insts[ninst].pred_sz == 1 && dyn->insts[ninst].pred[0] == ninst - 1;
+}
+
+int isUpper32Zero(dynarec_ppc64le_t* dyn, int ninst, int reg)
+{
+    if (!IS_GPR(reg))
+        return 0;
+    const uint16_t bit = (uint16_t)(1 << TO_X64(reg));
+    int current = ninst;
+    for (int depth = 0; depth < 4 && hasLinearPredecessor(dyn, current); ++depth) {
+        const instruction_ppc64le_t* prev = &dyn->insts[current - 1];
+        if (prev->x64.has_callret || prev->x64.barrier)
+            return 0;
+        if (prev->up32_write64 & bit) return prev->up32_zero & bit;
+        --current;
+    }
+    return 0;
+}
+
+#define UP32_READS(inst) ((inst)->up32_agnostic ? (inst)->up32_read : (uint16_t)0xFFFF)
+
+void updateUpperLiveness(dynarec_ppc64le_t* dyn)
+{
+    int n = dyn->size;
+    if (n <= 0)
+        return;
+    if (!BOX64ENV(dynarec_ppc64le_up32)) {
+        for (int i = 0; i < n; ++i) {
+            dyn->insts[i].up32_skip = 0;
+            dyn->insts[i].up32_pending = 0;
+        }
+        return;
+    }
+
+    size_t live_size = (size_t)n * sizeof(uint16_t);
+    size_t work_size = (size_t)n * sizeof(int);
+    size_t list_size = (size_t)n * sizeof(uint8_t);
+    void* buffer = calloc(1, 3 * live_size + work_size + list_size);
+    if (!buffer)
+        return;
+    uint16_t* live_in = (uint16_t*)buffer;
+    uint16_t* live_out = (uint16_t*)((char*)live_in + live_size);
+    uint16_t* pending_in = (uint16_t*)((char*)live_out + live_size);
+    int* work = (int*)((char*)pending_in + live_size);
+    uint8_t* on_list = (uint8_t*)((char*)work + work_size);
+
+    int sp = 0;
+    for (int i = n - 1; i >= 0; --i) {
+        if (dyn->insts[i].x64.alive) {
+            work[sp++] = i;
+            on_list[i] = 1;
+        }
+    }
+    // backward analysis: which upper halves are live after each instruction
+    while (sp > 0) {
+        int i = work[--sp];
+        on_list[i] = 0;
+        const instruction_ppc64le_t* inst = &dyn->insts[i];
+        if (!inst->x64.alive)
+            continue;
+        uint16_t combined_out = 0;
+        if (inst->x64.has_next && i + 1 < n && dyn->insts[i + 1].x64.alive)
+            combined_out |= live_in[i + 1];
+        if (inst->x64.jmp) {
+            if (inst->x64.jmp_insts >= 0 && inst->x64.jmp_insts < n)
+                combined_out |= live_in[inst->x64.jmp_insts];
+            else
+                combined_out = UINT16_MAX;
+        }
+        int has_internal_jump = inst->x64.jmp && inst->x64.jmp_insts >= 0 && inst->x64.jmp_insts < n;
+        if ((inst->x64.has_next && i == n - 1) || (!inst->x64.has_next && !has_internal_jump))
+            combined_out = UINT16_MAX; // leaving the block: everything must be clean
+        combined_out |= (uint16_t)(1 << _SP);
+        live_out[i] = combined_out;
+
+        uint16_t live_in_val = UP32_READS(inst) | (combined_out & (uint16_t)~inst->up32_write64);
+        if (live_in_val != live_in[i]) {
+            live_in[i] = live_in_val;
+            for (int p = 0; p < inst->pred_sz; ++p) {
+                int j = inst->pred[p];
+                if (!on_list[j]) {
+                    work[sp++] = j;
+                    on_list[j] = 1;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < n; ++i) {
+        instruction_ppc64le_t* inst = &dyn->insts[i];
+        inst->up32_skip = inst->up32_agnostic ? (inst->up32_write32 & (uint16_t)~live_out[i]) : 0;
+    }
+
+    memset(on_list, 0, list_size);
+    sp = 0;
+    for (int i = 0; i < n; ++i) {
+        if (dyn->insts[i].x64.alive) {
+            work[sp++] = i;
+            on_list[i] = 1;
+        }
+    }
+    // forward analysis: which upper halves are stale at entry
+    while (sp > 0) {
+        int i = work[--sp];
+        on_list[i] = 0;
+        instruction_ppc64le_t* inst = &dyn->insts[i];
+        if (!inst->x64.alive)
+            continue;
+        uint16_t merged_pending = 0;
+        for (int p = 0; p < inst->pred_sz; ++p) {
+            int j = inst->pred[p];
+            const instruction_ppc64le_t* pred = &dyn->insts[j];
+            merged_pending |= (pending_in[j] & (uint16_t)~pred->up32_write64) | pred->up32_skip;
+        }
+        if (merged_pending != pending_in[i]) {
+            pending_in[i] = merged_pending;
+            if (inst->x64.has_next && i + 1 < n && dyn->insts[i + 1].x64.alive && !on_list[i + 1]) {
+                work[sp++] = i + 1;
+                on_list[i + 1] = 1;
+            }
+            if (inst->x64.jmp && inst->x64.jmp_insts >= 0 && inst->x64.jmp_insts < n) {
+                int j = inst->x64.jmp_insts;
+                if (dyn->insts[j].x64.alive && !on_list[j]) {
+                    work[sp++] = j;
+                    on_list[j] = 1;
+                }
+            }
+        }
+    }
+    for (int i = 0; i < n; ++i)
+        dyn->insts[i].up32_pending = pending_in[i];
+
+    free(buffer);
 }
