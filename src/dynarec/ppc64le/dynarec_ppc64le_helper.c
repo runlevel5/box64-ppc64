@@ -55,6 +55,12 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
     uint8_t ret = x2;
     *fixaddress = 0;
     if (hint > 0) ret = hint;
+    // upper-32 tracking: a register used as the address itself must be clean (UP32_READ); one that
+    // only feeds a computed address needs it only when the computation is not truncated to 32 bits
+#define UP32_ADDR_READ(r)                                     \
+    do {                                                      \
+        if (!(rex.is32bits || rex.is67)) UP32_READ(r);        \
+    } while (0)
     // i12 is the alignment mask: 0 = no inline displacement, 3 = DS-form, 15 = DQ-form
     int align_mask = i12;
     int maxval = 32767;  // PPC64LE ADDI has 16-bit signed immediate
@@ -65,20 +71,21 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             uint8_t sib = F8;
             int sib_reg = ((sib >> 3) & 7) + (rex.x << 3);
             int sib_reg2 = (sib & 0x7) + (rex.b << 3);
-            if ((sib & 0x7) != 5) UP32_READ(TO_NAT(sib_reg2));
-            if (sib_reg != 4) UP32_READ(TO_NAT(sib_reg));
             if ((sib & 0x7) == 5) {
                 int64_t tmp = F32S;
                 if (sib_reg != 4) {
                     if (tmp && ((tmp < -32768) || (tmp > maxval) || !align_mask || (tmp & align_mask))) {
+                        UP32_ADDR_READ(TO_NAT(sib_reg));
                         MOV64y(scratch, tmp);
                         SLADDy(ret, TO_NAT(sib_reg), scratch, sib >> 6);
                         SCRATCH_USAGE(1);
                     } else {
                         if (sib >> 6) {
+                            UP32_ADDR_READ(TO_NAT(sib_reg));
                             SLLIy(ret, TO_NAT(sib_reg), (sib >> 6));
                             if (!IS_GPR(ret)) SCRATCH_USAGE(1);
                         } else {
+                            UP32_READ(TO_NAT(sib_reg));
                             ret = TO_NAT(sib_reg);
                         }
                         *fixaddress = tmp;
@@ -105,9 +112,12 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                 }
             } else {
                 if (sib_reg != 4) {
+                    UP32_ADDR_READ(TO_NAT(sib_reg));
+                    UP32_ADDR_READ(TO_NAT(sib_reg2));
                     SLADDy(ret, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6);
                     if (!IS_GPR(ret)) SCRATCH_USAGE(1);
                 } else {
+                    UP32_READ(TO_NAT(sib_reg2));
                     ret = TO_NAT(sib_reg2);
                 }
             }
@@ -183,10 +193,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
         if ((nextop & 7) == 4) {
             sib = F8;
             sib_reg = ((sib >> 3) & 7) + (rex.x << 3);
-            if (sib_reg != 4) UP32_READ(TO_NAT(sib_reg));
-            UP32_READ(TO_NAT((sib & 0x07) + (rex.b << 3)));
-        } else
-            UP32_READ(TO_NAT((nextop & 0x07) + (rex.b << 3)));
+        }
         int sib_reg2 = (sib & 0x07) + (rex.b << 3);
         if (nextop & 0x80)
             i64 = F32S;
@@ -196,15 +203,22 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             *fixaddress = i64;
             if ((nextop & 7) == 4) {
                 if (sib_reg != 4) {
+                    UP32_ADDR_READ(TO_NAT(sib_reg));
+                    UP32_ADDR_READ(TO_NAT(sib_reg2));
                     SLADDy(ret, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6);
                     if (!IS_GPR(ret)) SCRATCH_USAGE(1);
                 } else {
+                    UP32_READ(TO_NAT(sib_reg2));
                     ret = TO_NAT(sib_reg2);
                 }
             } else {
+                UP32_READ(TO_NAT((nextop & 0x07) + (rex.b << 3)));
                 ret = TO_NAT((nextop & 0x07) + (rex.b << 3));
             }
         } else {
+            // every path below computes the address, truncated to 32 bits in 32-bit addressing
+            if ((nextop & 7) == 4 && sib_reg != 4) UP32_ADDR_READ(TO_NAT(sib_reg));
+            UP32_ADDR_READ(TO_NAT(sib_reg2));
             if (i64 >= -32768 && i64 <= 32767) {
                 // keep scratch for the segment base below: the guest base register goes in base
                 int base;
@@ -253,6 +267,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
     }
     *ed = ret;
     return addr;
+#undef UP32_ADDR_READ
 }
 
 uintptr_t geted16(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nextop, uint8_t* ed, uint8_t hint, uint8_t scratch, int64_t* fixaddress, rex_t rex, int i12)
