@@ -675,6 +675,7 @@ int my_sigactionhandler_oldcode_64(x64emu_t* emu, int32_t sig, int simple, sigin
         if(db && !ACCESS_FLAG(F_TF)) {
             // if signal was inside a dynablock, just mirror all the new regs in the right place to simple run native_next
             mctx2emu(emu, &sigcontext->uc_mcontext);
+            dynablock_leave_runtime(db); // the interrupted block is abandoned, it is not in use anymore
             copyEmu2USignalCTXreg(p, emu, native_next);
             printf_log((sig==10)?LOG_DEBUG:log_minimum, "Context has been changed in Sigactionhanlder, jumping to native_next from DynaBlock at %p, RSP=%p\n", (void*)R_RIP, (void*)R_RSP);
             return 1;
