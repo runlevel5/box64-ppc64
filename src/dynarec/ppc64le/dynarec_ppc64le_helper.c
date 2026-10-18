@@ -578,20 +578,21 @@ void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex)
     MVz(x1, xRIP);
     SMEND();
     if (BOX64DRENV(dynarec_callret)) {
-        // pop the actual return address from PPC64LE stack
+        // read the top shadow return address from PPC64LE stack (popped only if it matches)
         LD(x4, 0, xSP);       // native addr
         LD(x6, 8, xSP);       // x86 addr
-        ADDI(xSP, xSP, 16);   // pop
         if (BOX64DRENV(dynarec_callret) >= 2)
             doLeaveBlock(dyn, ninst, x5, x7, x3);
         // is it the right address?
         CMPD(x6, xRIP);
-        BNE(3 * 4);
-        // yes — branch to cached native return address
+        BNE(4 * 4);
+        // yes — pop and branch to cached native return address
+        ADDI(xSP, xSP, 16);   // pop
         MTCTR(x4);
         BCTR();
         // not the correct return address, regular jump, but purge the stack first:
-        // release the blocks kept in use by the pending returns, then reset the native SP
+        // release the blocks kept in use by the pending returns (including the top one, still on the
+        // stack: its block will never see this return), then reset the native SP
         if (BOX64DRENV(dynarec_callret) >= 2) {
             MV(x3, xSP);
             CALL_(const_ppc64le_shadow_purge, -1, 0, x3, 0);
