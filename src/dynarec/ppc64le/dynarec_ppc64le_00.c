@@ -1031,6 +1031,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
 
 #define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                          \
+    UP32_AGNOSTIC(); /* a fused compare uses cmpw or operands the producer already read */  \
     READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                \
     i8 = F8S;                                                                               \
     JUMP(addr + i8, 1);                                                                     \
@@ -1526,17 +1527,19 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             } else {         // mem <= reg
                 rex.seg = 0; // to be safe
                 SCRATCH_USAGE(0);
+                dyn->geted_notrunc = !rex.w; // the tracked zero-up below truncates the 32-bit result
                 addr = geted(dyn, addr, ninst, nextop, &ed, gd, x1, &fixedaddress, rex, NULL, NO_DISP, 0);
+                dyn->geted_notrunc = 0;
                 if (gd != ed) {
                     if (rex.w && rex.is67)
                         ZEROUP2(gd, ed);
                     else
-                        MVxw(gd, ed);
-                } else if (!rex.w && !rex.is32bits) {
-                    ZEROUP32_RESULT(gd); // truncate the higher 32bits as asked
+                        MVxw(gd, ed); // 32-bit: rldicl, zero-extended copy
+                } else if (!rex.w) {
+                    ZEROUP32_RESULT(gd); // truncate the higher 32bits
                 }
                 MARKREGd(gd);
-                if (!rex.w && (gd != ed || rex.is32bits)) UP32_ZERO(gd);
+                if (!rex.w && gd != ed) UP32_ZERO(gd);
             }
             break;
         case 0x8E:
@@ -3611,9 +3614,11 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             BARRIER(BARRIER_MAYBE);
             if (opcode == 0xE9) {
                 INST_NAME("JMP Id");
+                UP32_AGNOSTIC();
                 i32 = F32S;
             } else {
                 INST_NAME("JMP Ib");
+                UP32_AGNOSTIC();
                 i32 = F8S;
             }
             if (rex.is32bits)

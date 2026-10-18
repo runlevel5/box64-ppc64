@@ -245,32 +245,17 @@
 #define SLADDy(rd, rj, rk, imm)                                   \
     do {                                                          \
         if ((imm) == 0) {                                         \
-            if (rex.is32bits || rex.is67) {                       \
-                ADD(rd, rj, rk);                                  \
-                ZEROUP(rd);                                       \
-            } else {                                              \
-                ADD(rd, rj, rk);                                  \
-            }                                                     \
+            ADD(rd, rj, rk);                                      \
         } else if ((rd) == (rk)) {                                \
             /* rd==rk: shift rj into r0 to avoid clobbering rk */ \
-            if (rex.is32bits || rex.is67) {                       \
-                SLWI(0, rj, imm);                                 \
-                ADD(rd, 0, rk);                                   \
-                ZEROUP(rd);                                       \
-            } else {                                              \
-                SLDI(0, rj, imm);                                 \
-                ADD(rd, 0, rk);                                   \
-            }                                                     \
+            SLDI(0, rj, imm);                                     \
+            ADD(rd, 0, rk);                                       \
         } else {                                                  \
-            if (rex.is32bits || rex.is67) {                       \
-                SLWI(rd, rj, imm);                                \
-                ADD(rd, rd, rk);                                  \
-                ZEROUP(rd);                                       \
-            } else {                                              \
-                SLDI(rd, rj, imm);                                \
-                ADD(rd, rd, rk);                                  \
-            }                                                     \
+            SLDI(rd, rj, imm);                                    \
+            ADD(rd, rd, rk);                                      \
         }                                                         \
+        if ((rex.is32bits || rex.is67) && !dyn->geted_notrunc)    \
+            ZEROUP(rd);                                           \
     } while (0)
 
 // SLADD without the 32-bit truncation: for an intermediate value that a later y-op truncates anyway
@@ -290,21 +275,17 @@
 // ADDy: add, conditional 32/64
 #define ADDy(rd, rj, rk)                \
     do {                                \
-        if (rex.is32bits || rex.is67) { \
-            ADD(rd, rj, rk);            \
+        ADD(rd, rj, rk);                \
+        if ((rex.is32bits || rex.is67) && !dyn->geted_notrunc) \
             ZEROUP(rd);                 \
-        } else                          \
-            ADD(rd, rj, rk);            \
     } while (0)
 
 // ADDIy: addi, conditional 32/64
 #define ADDIy(rd, rj, imm)              \
     do {                                \
-        if (rex.is32bits || rex.is67) { \
-            ADDI(rd, rj, imm);          \
+        ADDI(rd, rj, imm);              \
+        if ((rex.is32bits || rex.is67) && !dyn->geted_notrunc) \
             ZEROUP(rd);                 \
-        } else                          \
-            ADDI(rd, rj, imm);          \
     } while (0)
 
 // ADDxREGy: add, sign-extending rk from 32-bit first if needed (for seg+offset in 32-bit mode)

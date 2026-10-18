@@ -162,6 +162,7 @@ typedef struct instruction_ppc64le_s {
 } instruction_ppc64le_t;
 
 typedef struct dynarec_ppc64le_s {
+    uint8_t             geted_notrunc:1;  // geted: don't truncate a computed 32-bit address (caller zero-ups the result)
     instruction_ppc64le_t* insts;
     int32_t size;
     int32_t cap;

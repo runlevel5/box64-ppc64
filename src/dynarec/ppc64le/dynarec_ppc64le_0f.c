@@ -883,6 +883,7 @@ uintptr_t dynarec64_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             break;
 
 #define GO(GETFLAGS, NO, YES, NATNO, NATYES, F, I)                                          \
+    UP32_AGNOSTIC(); /* a fused compare uses cmpw or operands the producer already read */  \
     READFLAGS_FUSION(F, x1, x2, x3, x4, x5);                                                \
     i32_ = F32S;                                                                            \
     if (rex.is32bits)                                                                       \
