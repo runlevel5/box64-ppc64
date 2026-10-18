@@ -47,7 +47,8 @@ static const int32_t* tY;   // 0xb281054
 static inline uint8_t clamp13(int32_t s)
 {
     int32_t x = s >> 13;
-    if ((uint32_t)x > 255) x = (-x) >> 31; // same saturation as the guest code: <0 -> 0, >255 -> 255
+    x = x < 0 ? 0 : x;     // same saturation as the guest code: <0 -> 0, >255 -> 255 (branch-free: isel)
+    x = x > 255 ? 255 : x;
     return (uint8_t)x;
 }
 
