@@ -56,7 +56,7 @@
         dyn->insts[ninst].x64.jmp_cond = C;             \
         dyn->insts[ninst].x64.jmp_insts = 0;            \
     } while (0)
-#define BARRIER(A)      if(A!=BARRIER_MAYBE) {fpu_purgecache(dyn, ninst, 0, x1, x2, x3); dyn->insts[ninst].x64.barrier = A;} else dyn->insts[ninst].barrier_maybe = 1
+#define BARRIER(A)      if(A!=BARRIER_MAYBE) {UP32_READALL(); fpu_purgecache(dyn, ninst, 0, x1, x2, x3); dyn->insts[ninst].x64.barrier = A;} else dyn->insts[ninst].barrier_maybe = 1
 #define SET_HASCALLRET()    dyn->insts[ninst].x64.has_callret = 1
 #define NEW_INST \
         ++dyn->size;                            \

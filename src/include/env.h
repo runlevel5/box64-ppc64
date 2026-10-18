@@ -190,12 +190,20 @@ extern char* ftrace_name;
 #endif
 
 
+#ifdef PPC64LE
+#define ENVSUPER6() \
+    BOOLEAN(BOX64_DYNAREC_PPC64LE_UP32, dynarec_ppc64le_up32, 1, 1, 1)
+#else
+#define ENVSUPER6()
+#endif
+
 #define ENVSUPER() \
     ENVSUPER1()    \
     ENVSUPER2()    \
     ENVSUPER3()    \
     ENVSUPER4()    \
-    ENVSUPER5()
+    ENVSUPER5()    \
+    ENVSUPER6()
 
 typedef struct box64env_s {
 #define INTEGER(NAME, name, default, min, max, wine, dynacache) int name;

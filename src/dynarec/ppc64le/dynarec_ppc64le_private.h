@@ -146,6 +146,15 @@ typedef struct instruction_ppc64le_s {
     unsigned            fpu_used:1; // any xmm/ymm/x87/mmx reg used
     unsigned            fpupurge:1;   // this opcode will purge all fpu regs
     uint16_t            nat_next_inst;
+    // upper-32 tracking (see updateUpperLiveness): an audited ("agnostic") instruction only reads the upper
+    // 32 bits of the GPRs in up32_read; any other instruction is assumed to read them all.
+    uint8_t             up32_agnostic:1;  // the instruction marked its upper-32 reads and 32-bit writes
+    uint16_t            up32_read;        // GPRs whose upper 32 bits are read by this instruction
+    uint16_t            up32_write64;     // GPRs written as 64-bit (upper 32 become defined)
+    uint16_t            up32_write32;     // GPRs written as 32-bit (subset of up32_write64)
+    uint16_t            up32_zero;        // GPRs guaranteed zero-extended at instruction exit
+    uint16_t            up32_skip;        // GPRs whose zero-up after a 32-bit write can be skipped
+    uint16_t            up32_pending;     // GPRs whose upper 32 bits are stale at entry
     flagcache_t         f_exit;     // flags status at end of instruction
     vmxcache_t          v;          // vmxcache at end of instruction (but before poping)
     flagcache_t         f_entry;    // flags status before the instruction begin

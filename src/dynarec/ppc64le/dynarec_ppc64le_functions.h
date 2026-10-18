@@ -101,6 +101,8 @@ void updateYmm0s(dynarec_ppc64le_t* dyn, int ninst, int max_ninst_reached);
 
 // Update native flags fusion info
 void updateNativeFlags(dynarec_ppc64le_t* dyn);
+void updateUpperLiveness(dynarec_ppc64le_t* dyn);
+int isUpper32Zero(dynarec_ppc64le_t* dyn, int ninst, int reg);
 
 // Get free scratch registers avoiding native flag operands
 void get_free_scratch(dynarec_ppc64le_t* dyn, int ninst, uint8_t* tmp1, uint8_t* tmp2, uint8_t* tmp3, uint8_t s1, uint8_t s2, uint8_t s3, uint8_t s4, uint8_t s5);

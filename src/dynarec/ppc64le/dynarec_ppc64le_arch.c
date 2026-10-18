@@ -68,6 +68,7 @@ typedef struct arch_arch_s
     #undef GO
     uint16_t unaligned:1;
     uint16_t seq:10;    // how many instruction on the same values
+    uint16_t up32;      // GPRs with a stale upper 32 bits at the start of this instruction
 } arch_arch_t;
 
 typedef struct arch_build_s
@@ -76,6 +77,7 @@ typedef struct arch_build_s
     SUPER()
     #undef GO
     uint8_t unaligned;
+    uint16_t up32;
     #define GO(A) arch_##A##_t A##_;
     SUPER()
     #undef GO
@@ -97,6 +99,7 @@ static int arch_build(dynarec_ppc64le_t* dyn, int ninst, arch_build_t* arch, int
     }
     // opcode can handle unaligned
     arch->unaligned = dyn->insts[ninst].unaligned;
+    arch->up32 = dyn->insts[ninst].up32_pending;
     if(!noarch) {
         // go through all vmxcache to gather regs assignments
         for(int i=0; i<32; ++i)
@@ -157,7 +160,7 @@ static int arch_build(dynarec_ppc64le_t* dyn, int ninst, arch_build_t* arch, int
             arch->x87_.delta = dyn->insts[ninst].v.x87stack;
         }
     }
-    return arch->flags + arch->x87 + arch->mmx + arch->sse + arch->ymm + arch->unaligned;
+    return arch->flags + arch->x87 + arch->mmx + arch->sse + arch->ymm + arch->unaligned + (arch->up32 ? 1 : 0);
 }
 
 static int sizeof_arch(arch_arch_t* arch)
@@ -212,6 +215,7 @@ static void build_next(arch_arch_t* arch, arch_build_t* build)
     SUPER()
     #undef GO
     arch->unaligned = build->unaligned;
+    arch->up32 = build->up32;
     arch->seq = 0;
     void* p = ((void*)arch)+sizeof(arch_arch_t);
     #define GO(A)                                           \
@@ -294,6 +298,13 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
         if(flags->defered) {
             CHECK_FLAGS(emu);
         }
+    }
+    // registers whose zero-up was skipped by the dynarec: the emu copy has stale upper bits
+    uint16_t up32 = arch->up32;
+    while (up32) {
+        int r = __builtin_ctz(up32);
+        up32 &= up32 - 1;
+        emu->regs[r].q[0] &= 0xffffffffULL;
     }
     // PPC64LE signal context:
     // mcontext_t.gp_regs[0..31] = r0-r31

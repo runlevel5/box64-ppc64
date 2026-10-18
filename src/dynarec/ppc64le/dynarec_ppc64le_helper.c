@@ -65,6 +65,8 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             uint8_t sib = F8;
             int sib_reg = ((sib >> 3) & 7) + (rex.x << 3);
             int sib_reg2 = (sib & 0x7) + (rex.b << 3);
+            if ((sib & 0x7) != 5) UP32_READ(TO_NAT(sib_reg2));
+            if (sib_reg != 4) UP32_READ(TO_NAT(sib_reg));
             if ((sib & 0x7) == 5) {
                 int64_t tmp = F32S;
                 if (sib_reg != 4) {
@@ -171,6 +173,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
                 if (!IS_GPR(ret)) SCRATCH_USAGE(1);
             }
         } else {
+            UP32_READ(TO_NAT((nextop & 7) + (rex.b << 3)));
             ret = TO_NAT((nextop & 7) + (rex.b << 3));
         }
     } else {
@@ -180,7 +183,10 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
         if ((nextop & 7) == 4) {
             sib = F8;
             sib_reg = ((sib >> 3) & 7) + (rex.x << 3);
-        }
+            if (sib_reg != 4) UP32_READ(TO_NAT(sib_reg));
+            UP32_READ(TO_NAT((sib & 0x07) + (rex.b << 3)));
+        } else
+            UP32_READ(TO_NAT((nextop & 0x07) + (rex.b << 3)));
         int sib_reg2 = (sib & 0x07) + (rex.b << 3);
         if (nextop & 0x80)
             i64 = F32S;
@@ -760,6 +766,8 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
 void call_n(dynarec_ppc64le_t* dyn, int ninst, void* fnc, int w)
 {
     MAYUSE(fnc);
+    UP32_READALL();
+    UP32_READALL();
     CHECK_DFNONE(1);
     STD(xFlags, offsetof(x64emu_t, eflags), xEmu);
     fpu_pushcache(dyn, ninst, x3, 1);

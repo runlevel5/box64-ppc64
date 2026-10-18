@@ -327,9 +327,148 @@
     } while (0)
 
 // ========================================================================
+// Upper-32 tracking (see updateUpperLiveness in dynarec_ppc64le_functions.c)
+// A handler that calls UP32_AGNOSTIC() promises that it marks every GPR whose
+// upper 32 bits it reads (UP32_READ / MARKREGs) and every GPR it writes
+// (UP32_WRITE32 / UP32_WRITE64 / MARKREGd, or ZEROUP32_RESULT), and that its
+// own computations never depend on the upper 32 bits of a 32-bit operand.
+// Other handlers are assumed to read the upper bits of every GPR, so the
+// zero-up of a 32-bit write is only skipped when it is provably unobserved.
+// ========================================================================
+#if STEP == 0
+#define UP32_AGNOSTIC() dyn->insts[ninst].up32_agnostic = 1
+#define UP32_READ(r)                                                                \
+    do {                                                                            \
+        if (IS_GPR(r)) dyn->insts[ninst].up32_read |= (uint16_t)(1 << (TO_X64(r))); \
+    } while (0)
+#define UP32_WRITE64(r)                                                                \
+    do {                                                                               \
+        if (IS_GPR(r)) dyn->insts[ninst].up32_write64 |= (uint16_t)(1 << (TO_X64(r))); \
+    } while (0)
+#define UP32_WRITE32(r)                                                     \
+    do {                                                                    \
+        if (IS_GPR(r)) {                                                    \
+            UP32_WRITE64(r);                                                \
+            dyn->insts[ninst].up32_write32 |= (uint16_t)(1 << (TO_X64(r))); \
+        }                                                                   \
+    } while (0)
+#define UP32_READALL()                                   \
+    do {                                                 \
+        dyn->insts[ninst].up32_read |= (uint16_t)0xFFFF; \
+        dyn->insts[ninst].up32_agnostic = 0;             \
+    } while (0)
+#else
+#define UP32_AGNOSTIC() ((void)0)
+#define UP32_READ(r)    ((void)(r))
+#define UP32_WRITE64(r) ((void)(r))
+#define UP32_WRITE32(r) ((void)(r))
+#define UP32_READALL()  ((void)0)
+#endif
+
+#if STEP == 1
+#define UP32_ZERO(r)                                                                \
+    do {                                                                            \
+        if (IS_GPR(r)) dyn->insts[ninst].up32_zero |= (uint16_t)(1 << (TO_X64(r))); \
+    } while (0)
+#else
+#define UP32_ZERO(r) ((void)(r))
+#endif
+
+#define ZEROUP_RESULT(r) \
+    do {                 \
+        ZEROUP(r);       \
+        UP32_ZERO(r);    \
+    } while (0)
+
+// r is written as a 32-bit (rex.w==0) or 64-bit result
+#define MARKREGd(r)          \
+    do {                     \
+        if (rex.w)           \
+            UP32_WRITE64(r); \
+        else                 \
+            UP32_WRITE32(r); \
+    } while (0)
+// same, for the is32bits/64bits (z) width
+#define MARKREGdz(r)         \
+    do {                     \
+        if (!rex.is32bits)   \
+            UP32_WRITE64(r); \
+        else                 \
+            UP32_WRITE32(r); \
+    } while (0)
+// r is read as a 64-bit source (its upper bits matter) only when rex.w
+#define MARKREGs(r)              \
+    do {                         \
+        if (rex.w) UP32_READ(r); \
+    } while (0)
+#define MARKREGsz(r)                     \
+    do {                                 \
+        if (!rex.is32bits) UP32_READ(r); \
+    } while (0)
+#define MARKREGsd(r) \
+    do {             \
+        MARKREGs(r); \
+        MARKREGd(r); \
+    } while (0)
+#define MARKREGsdz(r) \
+    do {              \
+        MARKREGsz(r); \
+        MARKREGdz(r); \
+    } while (0)
+
+// does the 32-bit result in r still need its zero-up? (scratch registers: always)
+#define NEED_ZEROUP32(r) \
+    (!(IS_GPR(r)) || !((dyn->insts[ninst].up32_skip >> (TO_X64(r))) & 1))
+#define NEED_ZEROUP(r) (!rex.w && NEED_ZEROUP32(r))
+
+// r holds a 32-bit result whose upper bits may be garbage: zero them unless unobserved
+#define ZEROUP32_RESULT(r)                      \
+    do {                                        \
+        UP32_WRITE32(r);                        \
+        if (NEED_ZEROUP32(r)) ZEROUP_RESULT(r); \
+    } while (0)
+// r holds a 32-bit result that is already zero-extended (rlwinm, lwz, ...): just record it
+#define ZEROUP32_CLEAN(r) \
+    do {                  \
+        UP32_WRITE32(r);  \
+        UP32_ZERO(r);     \
+    } while (0)
+
+// ZF from a 32/64-bit result without depending on the upper bits of a 32-bit one
+#define CNTLZxw(rd, rs)      \
+    do {                     \
+        if (rex.w)           \
+            CNTLZD(rd, rs);  \
+        else                 \
+            CNTLZW(rd, rs);  \
+    } while (0)
+#define SET_ZF_FROM_RESULTxw(res, scratch)           \
+    do {                                             \
+        CNTLZxw(scratch, res);                       \
+        SRDI(scratch, scratch, rex.w ? 6 : 5);       \
+        BF_INSERT(xFlags, scratch, F_ZF, F_ZF);      \
+    } while (0)
+
+// ========================================================================
 // GETGD    get x64 register in gd
 // ========================================================================
-#define GETGD gd = TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3));
+#define GETGDw gd = TO_NAT(((nextop & 0x38) >> 3) + (rex.r << 3))
+#define GETGDs        \
+    do {              \
+        GETGDw;       \
+        MARKREGs(gd); \
+    } while (0)
+#define GETGD GETGDs;
+#define GETGDd        \
+    do {              \
+        GETGDw;       \
+        MARKREGd(gd); \
+    } while (0)
+#define GETGDsd       \
+    do {              \
+        GETGDw;       \
+        MARKREGsd(gd); \
+    } while (0)
 // GETVD    get x64 register in vd
 #define GETVD vd = TO_NAT(vex.v)
 
@@ -343,6 +482,7 @@
 #define GETED(D)                                                                                      \
     if (MODREG) {                                                                                     \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                     \
+        MARKREGs(ed);                                                                                 \
         wback = 0;                                                                                    \
     } else {                                                                                          \
         SMREAD();                                                                                     \
@@ -350,6 +490,13 @@
         LDxw(x1, wback, fixedaddress);                                                                \
         ed = x1;                                                                                      \
     }
+
+// GETED for an operand that is also written back as a result
+#define GETEDsd(D)                \
+    do {                          \
+        GETED(D);                 \
+        if (MODREG) MARKREGd(ed); \
+    } while (0)
 
 #define GETEDz(D)                                                                                     \
     if (MODREG) {                                                                                     \
@@ -366,6 +513,7 @@
 #define GETEDH(hint, ret, D)                                                                             \
     if (MODREG) {                                                                                        \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                        \
+        MARKREGs(ed);                                                                                    \
         wback = 0;                                                                                       \
     } else {                                                                                             \
         SMREAD();                                                                                        \
@@ -376,6 +524,7 @@
 #define GETEDW(hint, ret, D)                                                                             \
     if (MODREG) {                                                                                        \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                        \
+        MARKREGs(ed);                                                                                    \
         MV(ret, ed);                                                                                     \
         wback = 0;                                                                                       \
     } else {                                                                                             \
@@ -944,6 +1093,7 @@
 #define GETED(D)                                                                                      \
     if (MODREG) {                                                                                     \
         ed = TO_NAT((nextop & 7) + (rex.b << 3));                                                     \
+        MARKREGs(ed);                                                                                 \
         wback = 0;                                                                                    \
     } else {                                                                                          \
         SMREAD();                                                                                     \
