@@ -400,7 +400,7 @@ dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int n
         block = NULL;
     }
     if(block || !create) {
-        if(block && getNeedTest(addr) && (getProtection(block->x64_readaddr)&req_prot)!=req_prot)
+        if(block && getNeedTest(addr) && (getProtection_cached(block->x64_readaddr)&req_prot)!=req_prot)
             block = NULL;
         return block;
     }

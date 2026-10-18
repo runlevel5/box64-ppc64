@@ -76,6 +76,7 @@ pthread_mutex_t     mutex_mmap;
 #endif
 //#define TRACE_MEMSTAT
 rbtree_t* memprot = NULL;
+static uint32_t memprot_gen = 0; // bumped on every memprot change, see getProtection_cached
 // guest 4K page permissions for hosts with larger pages.
 static rbtree_t* memprot_guest = NULL;
 // guest 4K pages contain source code that the dynarec wants to write-protect
@@ -609,6 +610,7 @@ static void setProtection_generic(uintptr_t addr, size_t sz, uint32_t prot, mem_
 
 #define UNLOCK_PROT()                              \
     do {                                           \
+        __atomic_fetch_add(&memprot_gen, 1, __ATOMIC_RELAXED); \
         if (defered_prot_p) {                      \
             uintptr_t p = defered_prot_p;          \
             size_t sz = defered_prot_sz;           \
@@ -2950,6 +2952,29 @@ uint32_t getProtection_fast(uintptr_t addr)
     LOCK_PROT_FAST();
     uint32_t ret = rb_get(memprot, addr);
     UNLOCK_PROT_FAST();
+    return ret;
+}
+
+// Lock-free in the common case: per-thread cache of the last page looked up, invalidated by
+// any change to memprot (memprot_gen). Protections are set at page granularity, so one
+// page = one value. The generation is read before the locked lookup, so a change racing
+// with the lookup only costs a cache miss next time. A relaxed load is enough: a reader that
+// observes the old generation is in the same position as one that did its lookup just before
+// the change, which the locked path allows too (an acquire fence was 2/3 of this function's time
+// on POWER9).
+uint32_t getProtection_cached(uintptr_t addr)
+{
+    static __thread uintptr_t cache_page = (uintptr_t)-1;
+    static __thread uint32_t  cache_prot = 0;
+    static __thread uint32_t  cache_gen  = 0;
+    uintptr_t page = ALIGN_DOWN(addr);
+    uint32_t gen = __atomic_load_n(&memprot_gen, __ATOMIC_RELAXED);
+    if(page==cache_page && gen==cache_gen)
+        return cache_prot;
+    uint32_t ret = getProtection(addr);
+    cache_page = page;
+    cache_prot = ret;
+    cache_gen = gen;
     return ret;
 }
 
