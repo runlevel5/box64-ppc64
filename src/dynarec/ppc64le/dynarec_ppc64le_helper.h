@@ -1473,6 +1473,9 @@
 #ifndef JUMP
 #define JUMP(A, C)
 #endif
+#ifndef ENDPREFIX
+#define ENDPREFIX
+#endif
 #ifndef BARRIER
 #define BARRIER(A)
 #endif
