@@ -1455,6 +1455,7 @@
     do {                                                                    \
         dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op1 = op1;    \
         dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op2 = op2;    \
+        dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op32 = 0;     \
         if (dyn->insts[ninst + 1].no_scratch_usage && IS_GPR(op1)) {        \
             MV(s1, op1);                                                    \
             dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op1 = s1; \
@@ -1463,6 +1464,14 @@
             MV(s2, op2);                                                    \
             dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op2 = s2; \
         }                                                                   \
+    } while (0)
+
+// Same, for 32-bit operands: the fused jump compares the low words with cmpw/cmplw,
+// so the operands need no sign/zero extension and their upper bits don't matter.
+#define NAT_FLAGS_OPS32(op1, op2, s1, s2)                                   \
+    do {                                                                    \
+        NAT_FLAGS_OPS(op1, op2, s1, s2);                                    \
+        dyn->insts[dyn->insts[ninst].nat_next_inst].nat_flags_op32 = 1;     \
     } while (0)
 
 #define NAT_FLAGS_ENABLE_CARRY() dyn->insts[ninst].nat_flags_carry = 1
@@ -2262,6 +2271,27 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         else               \
             CMPLD(r1, r2); \
     } while (0)
+// Width-aware variants: compare the low 32 bits (cmpw/cmplw) when w32 is set
+#define NATCMP_S(r1, r2, w32)        \
+    do {                             \
+        if (w32) {                   \
+            if ((r2) == xZR)         \
+                CMPWI(r1, 0);        \
+            else                     \
+                CMPW(r1, r2);        \
+        } else                       \
+            CMPD_ZR(r1, r2);         \
+    } while (0)
+#define NATCMP_U(r1, r2, w32)        \
+    do {                             \
+        if (w32) {                   \
+            if ((r2) == xZR)         \
+                CMPLWI(r1, 0);       \
+            else                     \
+                CMPLW(r1, r2);       \
+        } else                       \
+            CMPLD_ZR(r1, r2);        \
+    } while (0)
 
 // --- 3-arg B##COND##_safe: always 3 instructions ---
 // Pattern: CMPD/CMPLD + near(Bcond+NOP) or far(inv_Bcond+B)
@@ -2403,68 +2433,79 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // Pattern: CMPD/CMPLD + Bcond
 // imm is offset from start of this macro to target. Bcond at +4, so offset = imm-4.
 
-#define BEQ_(r1, r2, imm) \
+#define BEQ_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BEQ((imm) - 4);   \
     } while (0)
+#define BEQ_(r1, r2, imm) BEQ_w(r1, r2, imm, 0)
 
-#define BNE_(r1, r2, imm) \
+#define BNE_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BNE((imm) - 4);   \
     } while (0)
+#define BNE_(r1, r2, imm) BNE_w(r1, r2, imm, 0)
 
-#define BLT_(r1, r2, imm) \
+#define BLT_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BLT((imm) - 4);   \
     } while (0)
+#define BLT_(r1, r2, imm) BLT_w(r1, r2, imm, 0)
 
-#define BGE_(r1, r2, imm) \
+#define BGE_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BGE((imm) - 4);   \
     } while (0)
+#define BGE_(r1, r2, imm) BGE_w(r1, r2, imm, 0)
 
-#define BGT_(r1, r2, imm) \
+#define BGT_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BGT((imm) - 4);   \
     } while (0)
+#define BGT_(r1, r2, imm) BGT_w(r1, r2, imm, 0)
 
-#define BLE_(r1, r2, imm) \
+#define BLE_w(r1, r2, imm, w32) \
     do {                  \
-        CMPD_ZR(r1, r2);  \
+        NATCMP_S(r1, r2, w32);  \
         BLE((imm) - 4);   \
     } while (0)
+#define BLE_(r1, r2, imm) BLE_w(r1, r2, imm, 0)
 
 // Unsigned variants use CMPLD
-#define BLTU_(r1, r2, imm) \
+#define BLTU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BLT((imm) - 4);    \
     } while (0)
+#define BLTU_(r1, r2, imm) BLTU_w(r1, r2, imm, 0)
 
-#define BGEU_(r1, r2, imm) \
+#define BGEU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BGE((imm) - 4);    \
     } while (0)
+#define BGEU_(r1, r2, imm) BGEU_w(r1, r2, imm, 0)
 
-#define BGTU_(r1, r2, imm) \
+#define BGTU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BGT((imm) - 4);    \
     } while (0)
+#define BGTU_(r1, r2, imm) BGTU_w(r1, r2, imm, 0)
 
-#define BLEU_(r1, r2, imm) \
+#define BLEU_w(r1, r2, imm, w32) \
     do {                   \
-        CMPLD_ZR(r1, r2);  \
+        NATCMP_U(r1, r2, w32);  \
         BLE((imm) - 4);    \
     } while (0)
+#define BLEU_(r1, r2, imm) BLEU_w(r1, r2, imm, 0)
 
 // B__: unconditional placeholder (dead code). Must be 2 instructions.
+#define B__w(a, b, imm, w32) B__(a, b, imm)
 #define B__(a, b, imm) \
     do {               \
         NOP();         \
@@ -2482,9 +2523,9 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 //   direct   condition: SETBC  (bit ? 1 : 0)
 //   inverted condition: SETBCR (bit ? 0 : 1)
 // Direct conditions: extract the relevant bit
-#define SLT_(dst, r1, r2)                \
+#define SLT_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_LT));  \
         } else {                         \
@@ -2492,10 +2533,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 1, 31, 31); \
         }                                \
     } while (0)
+#define SLT_(dst, r1, r2) SLT_w(dst, r1, r2, 0)
 
-#define SGT_(dst, r1, r2)                \
+#define SGT_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_GT));  \
         } else {                         \
@@ -2503,10 +2545,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 2, 31, 31); \
         }                                \
     } while (0)
+#define SGT_(dst, r1, r2) SGT_w(dst, r1, r2, 0)
 
-#define SEQ_(dst, r1, r2)                \
+#define SEQ_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_EQ));  \
         } else {                         \
@@ -2514,11 +2557,12 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 3, 31, 31); \
         }                                \
     } while (0)
+#define SEQ_(dst, r1, r2) SEQ_w(dst, r1, r2, 0)
 
 // Inverted conditions: extract the opposite bit and XOR with 1
-#define SGE_(dst, r1, r2)                \
+#define SGE_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_LT)); \
         } else {                         \
@@ -2527,10 +2571,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SGE_(dst, r1, r2) SGE_w(dst, r1, r2, 0)
 
-#define SLE_(dst, r1, r2)                \
+#define SLE_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_GT)); \
         } else {                         \
@@ -2539,10 +2584,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SLE_(dst, r1, r2) SLE_w(dst, r1, r2, 0)
 
-#define SNE_(dst, r1, r2)                \
+#define SNE_w(dst, r1, r2, w32)                \
     do {                                 \
-        CMPD_ZR(r1, r2);                 \
+        NATCMP_S(r1, r2, w32);                 \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_EQ)); \
         } else {                         \
@@ -2551,11 +2597,12 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SNE_(dst, r1, r2) SNE_w(dst, r1, r2, 0)
 
 // Unsigned variants use CMPLD
-#define SLTU_(dst, r1, r2)               \
+#define SLTU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_LT));  \
         } else {                         \
@@ -2563,10 +2610,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 1, 31, 31); \
         }                                \
     } while (0)
+#define SLTU_(dst, r1, r2) SLTU_w(dst, r1, r2, 0)
 
-#define SGTU_(dst, r1, r2)               \
+#define SGTU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBC(dst, BI(CR0, CR_GT));  \
         } else {                         \
@@ -2574,10 +2622,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             RLWINM(dst, dst, 2, 31, 31); \
         }                                \
     } while (0)
+#define SGTU_(dst, r1, r2) SGTU_w(dst, r1, r2, 0)
 
-#define SGEU_(dst, r1, r2)               \
+#define SGEU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_LT)); \
         } else {                         \
@@ -2586,10 +2635,11 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SGEU_(dst, r1, r2) SGEU_w(dst, r1, r2, 0)
 
-#define SLEU_(dst, r1, r2)               \
+#define SLEU_w(dst, r1, r2, w32)               \
     do {                                 \
-        CMPLD_ZR(r1, r2);                \
+        NATCMP_U(r1, r2, w32);                \
         if (cpuext.isa31) {              \
             SETBCR(dst, BI(CR0, CR_GT)); \
         } else {                         \
@@ -2598,8 +2648,10 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             XORI(dst, dst, 1);           \
         }                                \
     } while (0)
+#define SLEU_(dst, r1, r2) SLEU_w(dst, r1, r2, 0)
 
 // S__: unconditional placeholder (dead code). Sets dst=1 unconditionally.
+#define S__w(dst, r1, r2, w32) S__(dst, r1, r2)
 #define S__(dst, r1, r2) \
     do {                 \
         LI(dst, 1);      \
@@ -2612,81 +2664,117 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
 // (x86 regs map to GPR14-29, scratch GPR3-8,10-11), so this is safe.
 
 // Signed conditions: use CMPD_ZR (handles xZR==r0 safely)
-#define MVEQ_(dst, src, r1, r2)              \
+#define MVEQ_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, src, dst, BI(CR0, CR_EQ)); \
     } while (0)
+#define MVEQ_(dst, src, r1, r2) MVEQ_w(dst, src, r1, r2, 0)
 
-#define MVNE_(dst, src, r1, r2)              \
+#define MVNE_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, dst, src, BI(CR0, CR_EQ)); \
     } while (0)
+#define MVNE_(dst, src, r1, r2) MVNE_w(dst, src, r1, r2, 0)
 
-#define MVLT_(dst, src, r1, r2)              \
+#define MVLT_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, src, dst, BI(CR0, CR_LT)); \
     } while (0)
+#define MVLT_(dst, src, r1, r2) MVLT_w(dst, src, r1, r2, 0)
 
-#define MVGE_(dst, src, r1, r2)              \
+#define MVGE_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, dst, src, BI(CR0, CR_LT)); \
     } while (0)
+#define MVGE_(dst, src, r1, r2) MVGE_w(dst, src, r1, r2, 0)
 
-#define MVGT_(dst, src, r1, r2)              \
+#define MVGT_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, src, dst, BI(CR0, CR_GT)); \
     } while (0)
+#define MVGT_(dst, src, r1, r2) MVGT_w(dst, src, r1, r2, 0)
 
-#define MVLE_(dst, src, r1, r2)              \
+#define MVLE_w(dst, src, r1, r2, w32)              \
     do {                                     \
-        CMPD_ZR(r1, r2);                     \
+        NATCMP_S(r1, r2, w32);                     \
         ISEL(dst, dst, src, BI(CR0, CR_GT)); \
     } while (0)
+#define MVLE_(dst, src, r1, r2) MVLE_w(dst, src, r1, r2, 0)
 
 // Unsigned conditions: use CMPLD_ZR
-#define MVLTU_(dst, src, r1, r2)             \
+#define MVLTU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, src, dst, BI(CR0, CR_LT)); \
     } while (0)
+#define MVLTU_(dst, src, r1, r2) MVLTU_w(dst, src, r1, r2, 0)
 
-#define MVGEU_(dst, src, r1, r2)             \
+#define MVGEU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, dst, src, BI(CR0, CR_LT)); \
     } while (0)
+#define MVGEU_(dst, src, r1, r2) MVGEU_w(dst, src, r1, r2, 0)
 
-#define MVGTU_(dst, src, r1, r2)             \
+#define MVGTU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, src, dst, BI(CR0, CR_GT)); \
     } while (0)
+#define MVGTU_(dst, src, r1, r2) MVGTU_w(dst, src, r1, r2, 0)
 
-#define MVLEU_(dst, src, r1, r2)             \
+#define MVLEU_w(dst, src, r1, r2, w32)             \
     do {                                     \
-        CMPLD_ZR(r1, r2);                    \
+        NATCMP_U(r1, r2, w32);                    \
         ISEL(dst, dst, src, BI(CR0, CR_GT)); \
     } while (0)
+#define MVLEU_(dst, src, r1, r2) MVLEU_w(dst, src, r1, r2, 0)
 
 // Unconditional: always move (dead code path, kept for macro expansion)
 #define MV__(dst, src, r1, r2) MR(dst, src)
+#define MV__w(dst, src, r1, r2, w32) MR(dst, src)
+
+// Fused compare+branch: signed/unsigned compare of the recorded operands, 32-bit (cmpw/cmplw)
+// when the producer was a 32-bit operation, then the conditional branch (3 instructions).
+#define BCOND_nat(CMP, BYES, BNO, r1, r2, imm, w32) \
+    do {                                            \
+        CMP(r1, r2, w32);                           \
+        if ((imm) > -0x7000 && (imm) < 0x7000) {    \
+            BYES((imm) - 4);                        \
+            NOP();                                  \
+        } else {                                    \
+            BNO(2 * 4);                             \
+            B((imm) - 8);                           \
+        }                                           \
+    } while (0)
+#define BEQ_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BEQ, BNE, r1, r2, imm, w32)
+#define BNE_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BNE, BEQ, r1, r2, imm, w32)
+#define BLT_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BLT, BGE, r1, r2, imm, w32)
+#define BGE_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BGE, BLT, r1, r2, imm, w32)
+#define BGT_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BGT, BLE, r1, r2, imm, w32)
+#define BLE_safe_nat(r1, r2, imm, w32)  BCOND_nat(NATCMP_S, BLE, BGT, r1, r2, imm, w32)
+#define BLTU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BLT, BGE, r1, r2, imm, w32)
+#define BGEU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BGE, BLT, r1, r2, imm, w32)
+#define BGTU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BGT, BLE, r1, r2, imm, w32)
+#define BLEU_safe_nat(r1, r2, imm, w32) BCOND_nat(NATCMP_U, BLE, BGT, r1, r2, imm, w32)
+#define B__safe_nat(r1, r2, imm, w32)   B__safe(r1, r2, imm) // conditions without native fusion
 
 #define NATIVEJUMP_safe(COND, val) \
-    B##COND##_safe(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
+    B##COND##_safe_nat(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val, dyn->insts[ninst].nat_flags_op32);
 
 #define NATIVEJUMP(COND, val) \
-    B##COND##_(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val);
+    B##COND##_w(dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, val, dyn->insts[ninst].nat_flags_op32);
 
 #define NATIVESET(COND, rd) \
-    S##COND##_(rd, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
+    S##COND##_w(rd, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, dyn->insts[ninst].nat_flags_op32);
 
 #define NATIVEMV(COND, rd, rs) \
-    MV##COND##_(rd, rs, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2);
+    MV##COND##_w(rd, rs, dyn->insts[ninst].nat_flags_op1, dyn->insts[ninst].nat_flags_op2, dyn->insts[ninst].nat_flags_op32);
 
 // ========================================================================
 // NOTEST / SKIPTEST / GOTEST

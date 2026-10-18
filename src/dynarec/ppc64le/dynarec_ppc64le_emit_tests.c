@@ -227,42 +227,37 @@ void emit_cmp32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, in
     }
 
     // It's a cmp, we can't store the result back to s1.
-    SUBxw(s6, s1, s2);
-    IFX_PENDOR0 {
-        SDxw(s6, xEmu, offsetof(x64emu_t, res));
-    }
-    IFX(X_SF) {
-        // Check sign bit (bit 31 for 32-bit, bit 63 for 64-bit)
-        // Can't use CMPDI after SUBxw because zero-extension makes result always >= 0
-        BF_EXTRACT(s3, s6, rex.w ? 63 : 31, rex.w ? 63 : 31);
+    // When the fused jump is the only consumer of the flags, nothing needs to be computed here
+    if (dyn->insts[ninst].x64.gen_flags || !dyn->insts[ninst].nat_flags_fusion) {
+        SUBxw(s6, s1, s2);
+        IFX_PENDOR0 {
+            SDxw(s6, xEmu, offsetof(x64emu_t, res));
+        }
+        IFX(X_SF) {
+            // Check sign bit (bit 31 for 32-bit, bit 63 for 64-bit)
+            // Can't use CMPDI after SUBxw because zero-extension makes result always >= 0
+            BF_EXTRACT(s3, s6, rex.w ? 63 : 31, rex.w ? 63 : 31);
 
-        BF_INSERT(xFlags, s3, F_SF, F_SF);
-    }
-    if (!rex.w) {
-        ZEROUP(s6);
-    }
-    CALC_SUB_FLAGS(s5, s2, s6, s3, s4, rex.w?64:32);
-    IFX(X_ZF) {
-        CNTLZD(s3, s6);
-        SRDI(s3, s3, 6);
-        BF_INSERT(xFlags, s3, F_ZF, F_ZF);
-    }
-    IFX(X_PF) {
-        emit_pf(dyn, ninst, s6, s3, s4);
+            BF_INSERT(xFlags, s3, F_SF, F_SF);
+        }
+        if (!rex.w) {
+            ZEROUP(s6);
+        }
+        CALC_SUB_FLAGS(s5, s2, s6, s3, s4, rex.w?64:32);
+        IFX(X_ZF) {
+            CNTLZD(s3, s6);
+            SRDI(s3, s3, 6);
+            BF_INSERT(xFlags, s3, F_ZF, F_ZF);
+        }
+        IFX(X_PF) {
+            emit_pf(dyn, ninst, s6, s3, s4);
+        }
     }
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (rex.w)
             NAT_FLAGS_OPS(s1, s2, s3, s4);
-        else {
-            if (dyn->insts[ninst].nat_flags_needsign) {
-                SEXT_W(s3, s1);
-                SEXT_W(s4, s2);
-            } else {
-                ZEROUP2(s3, s1);
-                ZEROUP2(s4, s2);
-            }
-            NAT_FLAGS_OPS(s3, s4, s5, xZR);
-        }
+        else
+            NAT_FLAGS_OPS32(s1, s2, s3, s4);
     }
 }
 
@@ -308,17 +303,8 @@ void emit_cmp32_0(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, uint8_t nextop, 
     if (dyn->insts[ninst].nat_flags_fusion) {
         if (rex.w)
             NAT_FLAGS_OPS(s1, xZR, s4, xZR);
-        else {
-            if (dyn->insts[ninst].nat_flags_needsign) {
-                SEXT_W(s3, s1);
-                NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-            } else if (res == s5) { // zero-up'd case
-                NAT_FLAGS_OPS(res, xZR, s4, xZR);
-            } else {
-                ZEROUP2(s3, s1);
-                NAT_FLAGS_OPS(s3, xZR, s4, xZR);
-            }
-        }
+        else
+            NAT_FLAGS_OPS32(s1, xZR, s4, xZR);
     }
 }
 
@@ -465,14 +451,12 @@ void emit_test32(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int s2, i
     IFX(X_PF) {
         emit_pf(dyn, ninst, s3, s4, s5);
     }
-    if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s3);
-        } else {
-            ZEROUP(s3);
-        }
+    if (dyn->insts[ninst].nat_flags_fusion) {
+        if (rex.w)
+            NAT_FLAGS_OPS(s3, xZR, xZR, xZR);
+        else
+            NAT_FLAGS_OPS32(s3, xZR, xZR, xZR);
     }
-    if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s3, xZR, xZR, xZR);
 }
 
 // emit TEST32 instruction, from test s1, c, using s3, s4 and s5 as scratch
@@ -510,12 +494,10 @@ void emit_test32c(dynarec_ppc64le_t* dyn, int ninst, rex_t rex, int s1, int64_t 
     IFX(X_PF) {
         emit_pf(dyn, ninst, s3, s4, s5);
     }
-    if (dyn->insts[ninst].nat_flags_fusion && !rex.w) {
-        if (dyn->insts[ninst].nat_flags_needsign) {
-            SEXT_W(s3, s3);
-        } else if (((uint64_t)c >> 32) != 0) {
-            ZEROUP(s3);
-        }
+    if (dyn->insts[ninst].nat_flags_fusion) {
+        if (rex.w)
+            NAT_FLAGS_OPS(s3, xZR, xZR, xZR);
+        else
+            NAT_FLAGS_OPS32(s3, xZR, xZR, xZR);
     }
-    if (dyn->insts[ninst].nat_flags_fusion) NAT_FLAGS_OPS(s3, xZR, xZR, xZR);
 }
