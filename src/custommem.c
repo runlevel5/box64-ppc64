@@ -2955,26 +2955,28 @@ uint32_t getProtection_fast(uintptr_t addr)
     return ret;
 }
 
-// Lock-free in the common case: per-thread cache of the last page looked up, invalidated by
-// any change to memprot (memprot_gen). Protections are set at page granularity, so one
-// page = one value. The generation is read before the locked lookup, so a change racing
-// with the lookup only costs a cache miss next time. A relaxed load is enough: a reader that
-// observes the old generation is in the same position as one that did its lookup just before
-// the change, which the locked path allows too (an acquire fence was 2/3 of this function's time
-// on POWER9).
+// Lock-free in the common case: small per-thread cache of recent page lookups, invalidated by any
+// change to memprot (memprot_gen). Protections are set at page granularity, so one page = one value.
+// The generation is read before the locked lookup, so a change racing with the lookup only costs a
+// miss next time. Several entries, because dispatch typically alternates between the caller's and
+// the callee's page (a single entry thrashed: one locked lookup per indirect call into JIT code).
+// A relaxed load is enough: a reader that observes the old generation is in the same position as one
+// that did its lookup just before the change, which the locked path allows too.
+#define PROTCACHE_SIZE 8
 uint32_t getProtection_cached(uintptr_t addr)
 {
-    static __thread uintptr_t cache_page = (uintptr_t)-1;
-    static __thread uint32_t  cache_prot = 0;
-    static __thread uint32_t  cache_gen  = 0;
+    static __thread struct { uintptr_t page; uint32_t prot, gen; } cache[PROTCACHE_SIZE] = {
+        [0 ... PROTCACHE_SIZE - 1] = { (uintptr_t)-1, 0, 0 }
+    };
     uintptr_t page = ALIGN_DOWN(addr);
+    unsigned idx = (unsigned)(page / box64_pagesize) & (PROTCACHE_SIZE - 1);
     uint32_t gen = __atomic_load_n(&memprot_gen, __ATOMIC_RELAXED);
-    if(page==cache_page && gen==cache_gen)
-        return cache_prot;
+    if (cache[idx].page == page && cache[idx].gen == gen)
+        return cache[idx].prot;
     uint32_t ret = getProtection(addr);
-    cache_page = page;
-    cache_prot = ret;
-    cache_gen = gen;
+    cache[idx].page = page;
+    cache[idx].prot = ret;
+    cache[idx].gen = gen;
     return ret;
 }
 
