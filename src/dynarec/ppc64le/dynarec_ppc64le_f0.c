@@ -164,11 +164,17 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         BNEZ_MARK2(x3);
                     }
                     LWSYNC();
+                    // all the bits already set: the locked OR changes nothing, it can take effect at this load;
+                    // skipping the store keeps the cache line shared (Boehm GC dirty bits, set on every pointer store)
+                    LD(x1, 0, wback);
+                    ANDC(x4, gd, x1);
+                    BEQZ_MARKLOCK2(x4);
                     MARKLOCK;
                     LDARX(x1, 0, wback);
                     OR(x4, x1, gd);
                     STDCXd(x4, 0, wback);
                     BNE_MARKLOCK_CR0;
+                    MARKLOCK2;
                     LWSYNC();
                     if (!ALIGNED_ATOMICxw) { B_MARK3_nocond; }
                 } else {
@@ -177,11 +183,16 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         BNEZ_MARK(x3);
                     }
                     LWSYNC();
+                    LWZ(x1, 0, wback); // see above: no store if all the bits are already set
+                    ANDC(x4, gd, x1);
+                    RLDICL(x4, x4, 0, 32);
+                    BEQZ_MARKLOCK2(x4);
                     MARKLOCK;
                     LWARX(x1, 0, wback);
                     OR(x4, x1, gd);
                     STWCXd(x4, 0, wback);
                     BNE_MARKLOCK_CR0;
+                    MARKLOCK2;
                     LWSYNC();
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
@@ -1090,11 +1101,15 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 BNEZ_MARK2(x3);
                             }
                             LWSYNC();
+                            LD(x1, 0, wback); // no store if all the bits are already set (see LOCK OR Ed, Gd)
+                            ANDC(x4, x7, x1);
+                            BEQZ_MARKLOCK2(x4);
                             MARKLOCK;
                             LDARX(x1, 0, wback);
                             OR(x4, x1, x7);
                             STDCXd(x4, 0, wback);
                             BNE_MARKLOCK_CR0;
+                            MARKLOCK2;
                             LWSYNC();
                             if (!ALIGNED_ATOMICxw) { B_MARK3_nocond; }
                         } else {
@@ -1103,11 +1118,16 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 BNEZ_MARK(x3);
                             }
                             LWSYNC();
+                            LWZ(x1, 0, wback); // no store if all the bits are already set
+                            ANDC(x4, x7, x1);
+                            RLDICL(x4, x4, 0, 32);
+                            BEQZ_MARKLOCK2(x4);
                             MARKLOCK;
                             LWARX(x1, 0, wback);
                             OR(x4, x1, x7);
                             STWCXd(x4, 0, wback);
                             BNE_MARKLOCK_CR0;
+                            MARKLOCK2;
                             LWSYNC();
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
