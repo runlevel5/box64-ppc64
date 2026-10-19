@@ -151,6 +151,7 @@ extern char* ftrace_name;
     BOOLEAN(BOX64_UNITY, unity, 0, 0, 0)                                         \
     BOOLEAN(BOX64_UNITYPLAYER, unityplayer, 1, 0, 0)                             \
     BOOLEAN(BOX64_GAMEHOOKS, gamehooks, 1, 0, 0)                                 \
+    INTEGER(BOX64_UNITYHOOKS, unityhooks, 1, 0, 2, 0, 0)                         \
     BOOLEAN(BOX64_DYNAREC_JITPAGES, dynarec_jitpages, 0, 0, 0)                   \
     BOOLEAN(BOX64_DYNAREC_INUSE_ALL, dynarec_inuse_all, 0, 0, 0)                 \
     BOOLEAN(BOX64_WRAP_EGL, wrap_egl, 0, 0, 0)                                   \

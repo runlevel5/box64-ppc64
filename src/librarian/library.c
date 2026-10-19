@@ -383,6 +383,7 @@ static int loadEmulatedLib(const char* libname, library_t *lib, box64context_t* 
             printf_dump(LOG_INFO, "UnityPlayer detected, applying Unity settings\n");
             SET_BOX64ENV(unity, 1);
             env_changed = 1;
+            InstallUnityHooks(elf_header);
         }
         if(libname && BOX64ENV(dynarec_tbb) && strstr(libname, "libtbb.so")) {
             printf_dump(LOG_INFO, "libtbb detected, enable Dynarec StrongMem\n");
