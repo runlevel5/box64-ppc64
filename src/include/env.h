@@ -7,6 +7,11 @@
 
 #define BOX64ENV(name)   (box64env.name)
 #define BOX64DRENV(name) ((dyn->env && dyn->env->is_##name##_overridden) ? dyn->env->name : box64env.name)
+// BigBlock level for the block being built: when a JIT runtime that patches its generated code was
+// detected (MonoBleedingEdge), blocks in anonymous memory (the JIT code) are kept small, file-backed
+// code (the program and its libraries) keeps the configured level.
+extern int box64_jit_anon_nobigblock;
+#define BOX64DRBIGBLOCK() ((box64_jit_anon_nobigblock && !dyn->is_file_mapped) ? 0 : BOX64DRENV(dynarec_bigblock))
 #define SET_BOX64ENV(name, value)            \
     do {                                     \
         box64env.name = (value);             \

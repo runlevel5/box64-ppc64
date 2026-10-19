@@ -2101,7 +2101,7 @@ uintptr_t dynarec64_00_3(dynarec_la64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                         SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION); // Hack to put flag in "don't care" state
                     }
                     GETEDz(0);
-                    if (BOX64DRENV(dynarec_callret) && BOX64DRENV(dynarec_bigblock) > 1) {
+                    if (BOX64DRENV(dynarec_callret) && BOX64DRBIGBLOCK() > 1) {
                         BARRIER(BARRIER_FULL);
                     } else {
                         BARRIER(BARRIER_FLOAT);
@@ -2161,7 +2161,7 @@ uintptr_t dynarec64_00_3(dynarec_la64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                         ed = x1;
                         LD_HU(x3, wback, rex.w ? 8 : 4);
                         LD_HU(x5, xEmu, offsetof(x64emu_t, segs[_CS]));
-                        if (BOX64DRENV(dynarec_callret) && BOX64DRENV(dynarec_bigblock) > 1) {
+                        if (BOX64DRENV(dynarec_callret) && BOX64DRBIGBLOCK() > 1) {
                             BARRIER(BARRIER_FULL);
                         } else {
                             BARRIER(BARRIER_FLOAT);
