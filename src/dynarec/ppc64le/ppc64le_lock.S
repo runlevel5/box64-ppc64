@@ -28,6 +28,7 @@
 .global ppc64le_lock_storeifref2_d
 .global ppc64le_lock_decifnot0b
 .global ppc64le_lock_storeb
+.global ppc64le_lock_cas_dq
 .global ppc64le_lock_incif0
 .global ppc64le_lock_inc
 .global ppc64le_lock_decifnot0
@@ -573,3 +574,31 @@ ppc64le_fast_hash:
 
     blr
 .size ppc64le_fast_hash, .-ppc64le_fast_hash
+
+// int ppc64le_lock_cas_dq(void* p, uint64_t* old_lo, uint64_t* old_hi, uint64_t new_lo, uint64_t new_hi,
+//                         uint64_t exp_lo, uint64_t exp_hi)
+// 16-byte compare-and-swap on a 16-byte aligned address (lqarx/stqcx., POWER8+). Returns 1 if the
+// value was exp_hi:exp_lo and got replaced by new_hi:new_lo, else 0 with the current value in old_*.
+// Little-endian: the even register of a quadword pair holds the doubleword at EA+8.
+.align 4
+.type ppc64le_lock_cas_dq, @function
+ppc64le_lock_cas_dq:
+    mr      10, 7           // stqcx. pair r10:r11 = new_hi:new_lo
+    mr      11, 6
+    lwsync
+1:  lqarx   6, 0, 3         // r6 = current high, r7 = current low
+    cmpd    7, 8
+    bne-    2f
+    cmpd    6, 9
+    bne-    2f
+    stqcx.  10, 0, 3
+    bne-    1b
+    lwsync
+    li      3, 1
+    blr
+2:  std     7, 0(4)
+    std     6, 0(5)
+    lwsync
+    li      3, 0
+    blr
+.size ppc64le_lock_cas_dq, .-ppc64le_lock_cas_dq
