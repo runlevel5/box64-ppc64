@@ -190,6 +190,11 @@
         dyn->smwrite = 0; \
     } while (0)
 
+// The barrier at the end of a SEQ, with weak barriers (an arch can make it cheaper or drop it)
+#ifndef SMEND_BARRIER
+#define SMEND_BARRIER() DMB_ISHST()
+#endif
+
 // Will be put at the end of the SEQ
 #define SMEND()                                                         \
     do {                                                                \
@@ -198,7 +203,7 @@
             if (dyn->smwrite) {                                         \
                 /* Check if the next instruction has a end loop mark */ \
                 if (BOX64ENV(dynarec_weakbarrier))                      \
-                    DMB_ISHST();                                        \
+                    SMEND_BARRIER();                                    \
                 else                                                    \
                     DMB_TSO();                                          \
             }                                                           \
