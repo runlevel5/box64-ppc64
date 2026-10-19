@@ -2233,6 +2233,29 @@ static int guestPageHasWrite_locked(uintptr_t guest_page)
     return 0;
 }
 
+static int guestPageHasExec_locked(uintptr_t guest_page)
+{
+    uintptr_t scan = guest_page;
+    uintptr_t guest_end = guest_page + X86_PAGE_SIZE;
+    while (scan < guest_end) {
+        uint32_t prot = 0;
+        uintptr_t bend = guest_end;
+        if (!memprot_guest || !rb_get_end(memprot_guest, scan, &prot, &bend)) {
+            prot = rb_get(memprot, scan) & ~PROT_CUSTOM;
+            if (!prot)
+                prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+        }
+        if (prot & PROT_EXEC)
+            return 1;
+        if (bend > guest_end)
+            bend = guest_end;
+        if (bend <= scan)
+            break;
+        scan = bend;
+    }
+    return 0;
+}
+
 static int hostPageHasExternalWrite_locked(uintptr_t host_page, uintptr_t prot_start, uintptr_t prot_end)
 {
     uintptr_t host_end = host_page + box64_pagesize;
@@ -2240,6 +2263,10 @@ static int hostPageHasExternalWrite_locked(uintptr_t host_page, uintptr_t prot_s
         if (!guestPageHasWrite_locked(page)) continue;
         if (prot_end > prot_start && page < prot_end && page + X86_PAGE_SIZE > prot_start) continue;
         if (memprot_guest_dyn && rb_get(memprot_guest_dyn, page)) continue;
+        // JIT code areas are writable+executable and fill up gradually: a neighbour like that is most
+        // likely more code, so write-protect the whole host page and let a write to it go through the
+        // usual dirty/hotpage path (it gets PROT_DYNAREC in applyDBHostPageProtection_locked)
+        if (BOX64ENV(dynarec_jitpages) && guestPageHasExec_locked(page)) continue;
         return 1;
     }
     return 0;
@@ -2325,6 +2352,17 @@ static int applyDBHostPageProtection_locked(uintptr_t cur, uintptr_t bend, uint3
         if (!(dyn & PROT_DYNAREC) || (dyn & PROT_NEVERCLEAN_MIXED))
             mprotect((void*)hostpage_start, hostpage_end - hostpage_start, base_prot & ~PROT_WRITE);
         prot = base_prot | PROT_DYNAREC;
+        if (BOX64ENV(dynarec_jitpages) && box64_pagesize > X86_PAGE_SIZE) {
+            // the writable+executable neighbours are now write-protected too: track them, so that a
+            // write to one of them is handled as a code change of the host page (unprotectDB)
+            for (uintptr_t page = hostpage_start; page < hostpage_end; page += X86_PAGE_SIZE) {
+                if (page >= cur && page < bend) continue;
+                uint32_t gprot = rb_get(memprot, page);
+                if (!gprot || (gprot & (PROT_DYN))) continue;
+                if (guestPageHasWrite_locked(page) && guestPageHasExec_locked(page))
+                    rb_set(memprot, page, page + X86_PAGE_SIZE, gprot | PROT_DYNAREC);
+            }
+        }
     } else {
         if (!(dyn & PROT_DYNAREC_R) || (dyn & PROT_NEVERCLEAN_MIXED))
             mprotect((void*)hostpage_start, hostpage_end - hostpage_start, base_prot);
