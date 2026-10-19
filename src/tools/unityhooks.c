@@ -165,6 +165,87 @@ static void native_GetLocalToWorldMatrix(void* self, float* out)
     r = ROW3(x13, 1.f); memcpy(out + 12, &r, 16);
 }
 
+// x86 abs idiom of the guest code: (x < 0) ? x ^ signmask : x  (keeps -0.0 and NaN as they are)
+static inline float sabs(float x)
+{
+    return (x < 0.f) ? -x : x;
+}
+
+// TransformAABB(AABB const&, Matrix4x4f const&, AABB&): AABB = center[3], extent[3]; column-major matrix
+static void native_TransformAABB(const float* a, const float* m, float* o)
+{
+    const float ex = a[3], ey = a[4], ez = a[5];
+    const float e00 = sabs(ex * m[0]);
+    const float e01 = sabs(ey * m[4]);
+    const float e02 = sabs(ez * m[8]);
+    const float e10 = sabs(ex * m[1]);
+    const float ny = sabs(ez * m[9]) + (sabs(ey * m[5]) + e10);
+    const float nz = sabs(ez * m[10]) + (sabs(ey * m[6]) + sabs(ex * m[2]));
+    const float c0 = a[0], c1 = a[1], c2 = a[2];
+    const float r0 = m[4] * c1 + m[0] * c0;
+    const float r1 = m[5] * c1 + m[1] * c0;
+    const float r2 = m[6] * c1 + m[2] * c0;
+    o[0] = m[12] + (m[8] * c2 + r0);
+    o[1] = m[13] + (m[9] * c2 + r1);
+    o[2] = m[14] + (m[10] * c2 + r2);
+    o[3] = e02 + (e01 + e00);
+    o[4] = ny;
+    o[5] = nz;
+}
+
+static uintptr_t up_VerifyBoneIndices;   // Mesh::VerifyBoneIndices(unsigned int)
+static uintptr_t up_GetCachedBonesBounds; // Mesh::GetCachedBonesBounds() -> dynamic_array<MinMaxAABB>*
+static uintptr_t up_infinityVec;          // Vector3f::infinityVec (set at startup)
+
+// SkinnedMeshRenderer::CalculateBoneBasedBounds(Matrix4x4f const*, unsigned long, MinMaxAABB&) -> bool
+// MinMaxAABB = min[3], max[3]. MINSS/MAXSS semantics: (a < b) ? a : b / (a > b) ? a : b
+static int native_CalculateBoneBasedBounds(void* self, const float* mat, uintptr_t count, float* out)
+{
+    uintptr_t mesh = *(uintptr_t*)((uintptr_t)self + 0x1e0);
+    if (!mesh)
+        return 0;
+    if (!(uint8_t)RunFunctionFmt(up_VerifyBoneIndices, "pu", (void*)mesh, (uint32_t)count))
+        return 0;
+    uintptr_t cache = (uintptr_t)RunFunctionFmt(up_GetCachedBonesBounds, "p", (void*)mesh);
+    if (*(uint64_t*)(cache + 0x10) < count)
+        return 0;
+    const float* inf = (const float*)up_infinityVec;
+    float mnx = inf[0], mny = inf[1], mnz = inf[2];
+    float mxx = -inf[0], mxy = -inf[1], mxz = -inf[2];
+    const float* b = *(const float**)cache;
+    for (uintptr_t i = 0; i < count; ++i, b += 6, mat += 16) {
+        if (b[0] == inf[0] && b[1] == inf[1] && b[2] == inf[2])
+            continue;
+        if (b[3] == -inf[0] && b[4] == -inf[1] && b[5] == -inf[2])
+            continue;
+        float a[6], o[6];
+        a[0] = (b[0] + b[3]) * 0.5f;
+        a[1] = (b[1] + b[4]) * 0.5f;
+        a[2] = (b[2] + b[5]) * 0.5f;
+        a[3] = (b[3] - b[0]) * 0.5f;
+        a[4] = (b[4] - b[1]) * 0.5f;
+        a[5] = (b[5] - b[2]) * 0.5f;
+        native_TransformAABB(a, mat, o);
+        const float lx = o[0] - o[3], ly = o[1] - o[4], lz = o[2] - o[5];
+        const float tnx = (lx < mnx) ? lx : mnx, tny = (ly < mny) ? ly : mny, tnz = (lz < mnz) ? lz : mnz;
+        const float txx = (lx > mxx) ? lx : mxx, txy = (ly > mxy) ? ly : mxy, txz = (lz > mxz) ? lz : mxz;
+        const float hx = o[0] + o[3], hy = o[1] + o[4], hz = o[2] + o[5];
+        mnx = (hx < tnx) ? hx : tnx;
+        mny = (hy < tny) ? hy : tny;
+        mnz = (hz < tnz) ? hz : tnz;
+        mxx = (hx > txx) ? hx : txx;
+        mxy = (hy > txy) ? hy : txy;
+        mxz = (hz > txz) ? hz : txz;
+    }
+    if (mnx == inf[0] && mny == inf[1] && mnz == inf[2])
+        return 0;
+    if (mxx == -inf[0] && mxz == -inf[2] && mxy == -inf[1])
+        return 0;
+    out[0] = mnx; out[1] = mny; out[2] = mnz;
+    out[3] = mxx; out[4] = mxy; out[5] = mxz;
+    return 1;
+}
+
 // ---- verification mode: run both, compare the bytes --------------------------------------------
 static uintptr_t up_GetLocalToWorldMatrix;
 static uint64_t verify_calls, verify_bad;
@@ -188,6 +269,49 @@ static void verify_GetLocalToWorldMatrix(void* self, float* out)
         printf_log(LOG_NONE, "Unity hook verify: GetLocalToWorldMatrix %llu calls, %llu mismatches\n", (unsigned long long)n, (unsigned long long)verify_bad);
 }
 
+static uintptr_t up_TransformAABB, up_CalculateBoneBasedBounds;
+static uint64_t verify_calls2, verify_bad2, verify_calls3, verify_bad3;
+
+static void verify_report(const char* name, uint64_t n, uint64_t b, int bad, const float* mine, const float* guest, int cnt)
+{
+    if (bad && b <= 8) {
+        printf_log(LOG_NONE, "Unity hook verify: %s mismatch #%llu (call %llu):\n", name, (unsigned long long)b, (unsigned long long)n);
+        for (int i = 0; i < cnt; ++i)
+            if (memcmp(&mine[i], &guest[i], 4))
+                printf_log(LOG_NONE, "  [%d] native %a guest %a\n", i, mine[i], guest[i]);
+    }
+    if (!(n & ((1 << 20) - 1)))
+        printf_log(LOG_NONE, "Unity hook verify: %s %llu calls, %llu mismatches\n", name, (unsigned long long)n, (unsigned long long)b);
+}
+
+static void verify_TransformAABB(const float* a, const float* m, float* o)
+{
+    float in[6], mine[6];
+    memcpy(in, a, sizeof(in)); // o may alias a
+    native_TransformAABB(in, m, mine);
+    RunFunctionFmtNoAlt(up_TransformAABB, "ppp", (void*)a, (void*)m, (void*)o);
+    int bad = memcmp(mine, o, sizeof(mine)) != 0;
+    uint64_t n = __atomic_add_fetch(&verify_calls2, 1, __ATOMIC_RELAXED);
+    uint64_t b = bad ? __atomic_add_fetch(&verify_bad2, 1, __ATOMIC_RELAXED) : verify_bad2;
+    verify_report("TransformAABB", n, b, bad, mine, o, 6);
+}
+
+static int verify_CalculateBoneBasedBounds(void* self, const float* mat, uintptr_t count, float* out)
+{
+    float mine[7] = { 0 }, guest[7];
+    memcpy(guest, out, 24);
+    memcpy(mine, out, 24);
+    int r1 = native_CalculateBoneBasedBounds(self, mat, count, mine);
+    int r2 = (uint8_t)RunFunctionFmtNoAlt(up_CalculateBoneBasedBounds, "ppLp", self, (void*)mat, (uint64_t)count, (void*)out);
+    memcpy(guest, out, 24);
+    mine[6] = (float)r1; guest[6] = (float)r2;
+    int bad = memcmp(mine, guest, sizeof(mine)) != 0;
+    uint64_t n = __atomic_add_fetch(&verify_calls3, 1, __ATOMIC_RELAXED);
+    uint64_t b = bad ? __atomic_add_fetch(&verify_bad3, 1, __ATOMIC_RELAXED) : verify_bad3;
+    verify_report("CalculateBoneBasedBounds", n, b, bad, mine, guest, 7);
+    return r2;
+}
+
 typedef struct unityhook_s {
     const char* name;
     uintptr_t start;
@@ -201,6 +325,8 @@ typedef struct unityhook_s {
 
 static const unityhook_t unityhooks[] = {
     { "Transform::GetLocalToWorldMatrix", 0x103cac0, 0x2e5, 0x72de05b927c6dae2ULL, vFpp, native_GetLocalToWorldMatrix, verify_GetLocalToWorldMatrix, &up_GetLocalToWorldMatrix },
+    { "TransformAABB", 0x873050, 0x23a, 0x4f300a4a974e72a1ULL, vFppp, native_TransformAABB, verify_TransformAABB, &up_TransformAABB },
+    { "SkinnedMeshRenderer::CalculateBoneBasedBounds", 0x952d00, 0x35c, 0xff53c45073095b91ULL, iFpppp, native_CalculateBoneBasedBounds, verify_CalculateBoneBasedBounds, &up_CalculateBoneBasedBounds },
 };
 #define N_UNITYHOOKS (sizeof(unityhooks) / sizeof(unityhooks[0]))
 
@@ -219,6 +345,9 @@ void InstallUnityHooks(elfheader_t* h)
         }
         up_CompleteFenceInternal = delta + 0x9895c0;
         up_ClearFenceWithoutSync = delta + 0x9895b0;
+        up_VerifyBoneIndices = delta + 0x92b9f0;
+        up_GetCachedBonesBounds = delta + 0x92b7b0;
+        up_infinityVec = delta + 0x20d5640;
         *u->guest = delta + u->start;
         void* fnc = (BOX64ENV(unityhooks) == 2) ? u->verify : u->native;
         uintptr_t bridge = AddBridge(my_context->system, u->wrapper, fnc, 0, u->name);
