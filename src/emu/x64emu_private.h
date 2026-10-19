@@ -167,6 +167,9 @@ typedef struct x64emu_s {
     void*       res_state_32;  //32bits version of res_state
     void*       res_state_64;
     #endif
+    #if defined(DYNAREC) && defined(PPC64LE)
+    uint32_t*   inuse_counts;   // per-thread dynablock in_used counters (dynarec_ppc64le_functions.c)
+    #endif
 } x64emu_t;
 
 #define EMUTYPE_NONE    0

@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <pthread.h>
 #include <math.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -954,7 +956,7 @@ void ppc64le_shadow_purge(x64emu_t* emu, uintptr_t sp)
     for (uintptr_t p = sp; p + 2 * sizeof(uintptr_t) <= top; p += 2 * sizeof(uintptr_t)) {
         dynablock_t* db = FindDynablockFromNativeAddress(*(void**)p);
         if (!db) break; // not a shadow entry (a C frame was below): nothing more to release
-        __atomic_fetch_sub(&db->in_used, 1, __ATOMIC_ACQ_REL);
+        ppc64le_inuse_leave(emu, db);
     }
 }
 
@@ -1105,4 +1107,106 @@ void updateUpperLiveness(dynarec_ppc64le_t* dyn)
         dyn->insts[i].up32_pending = pending_in[i];
 
     free(buffer);
+}
+
+// in_used (enter/leave) keeps a block alive while it can still be returned into: only a block with a
+// call site can be the target of a pending return (callret shadow stack). A block without one is
+// executed straight through; its deferred free (zombie queue) is what protects it, as before in_used
+// existed. Counting every block costs two atomic read-modify-writes (lwarx/stwcx.) per execution,
+// which dominated call-heavy JIT code. BOX64_DYNAREC_INUSE_ALL=1 restores counting every block.
+void updateInUseTracking(dynarec_ppc64le_t* dyn)
+{
+    dyn->track_inuse = 0;
+    if (BOX64ENV(dynarec_inuse_all)) { dyn->track_inuse = 1; return; }
+    for (int i = 0; i < dyn->size; ++i)
+        if (dyn->insts[i].x64.has_callret) { dyn->track_inuse = 1; return; }
+}
+
+// ---- per-thread dynablock in_used counters -----------------------------------------------------------
+// A block is always entered and left by the same thread (its own exits, a return into it, the signal path,
+// the shadow-stack purge), so each thread keeps private counters, updated with plain loads and stores:
+// an atomic read-modify-write (lwarx/stwcx.) on every enter/leave was 3-4x the cost of the whole call in
+// call-heavy JIT code. On PPC64LE, dynablock_t.in_used holds the block's counter index (0 = untracked);
+// "is the block in use" sums its slot over all threads, which only happens when blocks are freed.
+// The counter arrays are reserved address space, only the touched pages get memory.
+#define INUSE_MAX    (1u << 22)
+#define INUSE_MAXEMU 4096
+static pthread_mutex_t inuse_mutex = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t* inuse_arrays[INUSE_MAXEMU];
+static uint32_t* inuse_free = NULL;
+static uint32_t inuse_free_sz = 0, inuse_free_cap = 0;
+static uint32_t inuse_next = 1;
+_Static_assert(offsetof(x64emu_t, inuse_counts) < 32768, "inuse_counts must be reachable with a 16-bit displacement");
+
+uint32_t* ppc64le_inuse_newthread(void)
+{
+    uint32_t* p = mmap(NULL, INUSE_MAX * sizeof(uint32_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (p == MAP_FAILED) {
+        printf_log(LOG_NONE, "Error: cannot reserve the dynarec in_used counters of a new thread\n");
+        abort();
+    }
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU; ++i)
+        if (!inuse_arrays[i]) { inuse_arrays[i] = p; break; }
+    pthread_mutex_unlock(&inuse_mutex);
+    return p;
+}
+
+void ppc64le_inuse_freethread(uint32_t* p)
+{
+    if (!p) return;
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU; ++i)
+        if (inuse_arrays[i] == p) inuse_arrays[i] = NULL;
+    pthread_mutex_unlock(&inuse_mutex);
+    munmap(p, INUSE_MAX * sizeof(uint32_t));
+}
+
+uint32_t ppc64le_inuse_alloc(void)
+{
+    uint32_t idx = 0;
+    pthread_mutex_lock(&inuse_mutex);
+    if (inuse_free_sz)
+        idx = inuse_free[--inuse_free_sz];
+    else if (inuse_next < INUSE_MAX)
+        idx = inuse_next++;
+    pthread_mutex_unlock(&inuse_mutex);
+    return idx; // 0 if exhausted: the block is then not tracked (slot 0 is a dummy)
+}
+
+int ppc64le_inuse_count(dynablock_t* db)
+{
+    uint32_t idx = db ? db->in_used : 0;
+    if (!idx || idx >= INUSE_MAX) return 0;
+    int sum = 0;
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU; ++i)
+        if (inuse_arrays[i]) sum += (int)__atomic_load_n(&inuse_arrays[i][idx], __ATOMIC_RELAXED);
+    pthread_mutex_unlock(&inuse_mutex);
+    return sum;
+}
+
+void ppc64le_inuse_leave(x64emu_t* emu, dynablock_t* db)
+{
+    uint32_t idx = db ? db->in_used : 0;
+    if (!idx || idx >= INUSE_MAX || !emu || !emu->inuse_counts) return;
+    --emu->inuse_counts[idx];
+}
+
+void ppc64le_inuse_release(dynablock_t* db)
+{
+    uint32_t idx = db ? db->in_used : 0;
+    if (!idx || idx >= INUSE_MAX) return;
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU; ++i)
+        if (inuse_arrays[i]) inuse_arrays[i][idx] = 0;
+    if (inuse_free_sz == inuse_free_cap) {
+        uint32_t ncap = inuse_free_cap ? inuse_free_cap * 2 : 1024;
+        uint32_t* n = box_realloc(inuse_free, ncap * sizeof(uint32_t));
+        if (n) { inuse_free = n; inuse_free_cap = ncap; }
+    }
+    if (inuse_free_sz < inuse_free_cap)
+        inuse_free[inuse_free_sz++] = idx;
+    pthread_mutex_unlock(&inuse_mutex);
+    db->in_used = 0;
 }

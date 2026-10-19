@@ -160,7 +160,7 @@ extern void* create_updateflags();
 #define MAXBLOCK_SIZE ((1 << 24) - 200)
 
 #define RAZ_SPECIFIC(A, N)
-#define UPDATE_SPECIFICS(A)    propagateFpuBarrier(A)
+#define UPDATE_SPECIFICS(A)    propagateFpuBarrier(A); updateInUseTracking(A)
 #define PREUPDATE_SPECIFICS(A) updateNativeFlags(A)
 #define POSTUPDATE_SPECIFICS(A)
 

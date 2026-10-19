@@ -2005,9 +2005,9 @@ void jump_to_epilog(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst);
 void jump_to_epilog_fast(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst);
 void jump_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst, int is32bits);
 void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex);
-// Enter a block (atomic increment of in_used)
+// Enter a block (per-thread in_used counter)
 void doEnterBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3);
-// Leave a block (atomic decrement of in_used)
+// Leave a block (per-thread in_used counter)
 void doLeaveBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3);
 void iret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, int is32bits, int is64bits);
 void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, int ret, int saveflags, int save_reg, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6);
