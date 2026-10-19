@@ -102,6 +102,14 @@ void updateYmm0s(dynarec_ppc64le_t* dyn, int ninst, int max_ninst_reached);
 // Update native flags fusion info
 void updateNativeFlags(dynarec_ppc64le_t* dyn);
 void updateUpperLiveness(dynarec_ppc64le_t* dyn);
+void updateInUseTracking(dynarec_ppc64le_t* dyn);
+// per-thread dynablock in_used counters
+uint32_t* ppc64le_inuse_newthread(void);
+void ppc64le_inuse_freethread(uint32_t* p);
+uint32_t ppc64le_inuse_alloc(void);
+int ppc64le_inuse_count(dynablock_t* db);
+void ppc64le_inuse_leave(x64emu_t* emu, dynablock_t* db);
+void ppc64le_inuse_release(dynablock_t* db);
 int isUpper32Zero(dynarec_ppc64le_t* dyn, int ninst, int reg);
 
 // Get free scratch registers avoiding native flag operands

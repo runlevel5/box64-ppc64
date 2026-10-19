@@ -53,9 +53,16 @@ static void reset_deferred_signal(x64emu_t* emu)
     #endif
 }
 
+#if defined(DYNAREC) && defined(PPC64LE)
+uint32_t* ppc64le_inuse_newthread(void);
+void ppc64le_inuse_freethread(uint32_t* p);
+#endif
 static void internalX64Setup(x64emu_t* emu, box64context_t *context, uintptr_t start, uintptr_t stack, int stacksize, int ownstack)
 {
     emu->context = context;
+    #if defined(DYNAREC) && defined(PPC64LE)
+    emu->inuse_counts = ppc64le_inuse_newthread();
+    #endif
     // setup cpu helpers
     for (int i=0; i<16; ++i)
         emu->sbiidx[i] = &emu->regs[i];
@@ -182,6 +189,12 @@ void SetTraceAddrs(uintptr_t* addrs, int count)
 
 static void internalFreeX64(x64emu_t* emu)
 {
+    #if defined(DYNAREC) && defined(PPC64LE)
+    if (emu) {
+        ppc64le_inuse_freethread(emu->inuse_counts);
+        emu->inuse_counts = NULL;
+    }
+    #endif
     if(emu && emu->stack2free) {
         munmap(emu->stack2free, emu->size_stack);
         freeProtection((uintptr_t)emu->stack2free, emu->size_stack);

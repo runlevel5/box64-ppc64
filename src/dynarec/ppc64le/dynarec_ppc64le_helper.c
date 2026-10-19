@@ -467,39 +467,45 @@ void jump_to_epilog_fast(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int nins
     BCTR();
 }
 
-// Enter a block: atomic increment of the dynablock in_used counter.
+// Enter a block: increment this thread's in_used counter of the block (blocks with a call site only).
 // The dynablock_t* is stored right before the start of the block; reach it PC-relative.
 void doEnterBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
 {
-    MAYUSE(s3);
+    if (!dyn->track_inuse) return;
     MESSAGE(LOG_DUMP, "doEnter --------\n");
     int delta = -(dyn->native_size + sizeof(void*)) - 4; // from the MFLR below (BCL+4) to the dynablock_t*
     BCL(20, 31, 4);
     MFLR(s1);
     ADDIS(s1, s1, PPC64_HI16(delta));
     LD(s1, PPC64_LO16(delta), s1);
-    ADDI(s1, s1, offsetof(dynablock_t, in_used));
-    LWARX(s2, 0, s1);
+    // per-thread counter: emu->inuse_counts[db->in_used] (in_used holds the block's counter index on PPC64LE)
+    LWZ(s2, offsetof(dynablock_t, in_used), s1);
+    LD(s3, offsetof(x64emu_t, inuse_counts), xEmu);
+    SLDI(s2, s2, 2);
+    ADD(s3, s3, s2);
+    LWZ(s2, 0, s3);
     ADDI(s2, s2, 1);
-    STWCXd(s2, 0, s1);
-    BNE(-3 * 4);
+    STW(s2, 0, s3);
     MESSAGE(LOG_DUMP, "-------- doEnter\n");
 }
-// Leave a block: atomic decrement of in_used
+// Leave a block: decrement this thread's in_used counter of the block
 void doLeaveBlock(dynarec_ppc64le_t* dyn, int ninst, int s1, int s2, int s3)
 {
-    MAYUSE(s3);
+    if (!dyn->track_inuse) return;
     MESSAGE(LOG_DUMP, "doLeave --------\n");
     int delta = -(dyn->native_size + sizeof(void*)) - 4;
     BCL(20, 31, 4);
     MFLR(s1);
     ADDIS(s1, s1, PPC64_HI16(delta));
     LD(s1, PPC64_LO16(delta), s1);
-    ADDI(s1, s1, offsetof(dynablock_t, in_used));
-    LWARX(s2, 0, s1);
+    // per-thread counter: emu->inuse_counts[db->in_used] (in_used holds the block's counter index on PPC64LE)
+    LWZ(s2, offsetof(dynablock_t, in_used), s1);
+    LD(s3, offsetof(x64emu_t, inuse_counts), xEmu);
+    SLDI(s2, s2, 2);
+    ADD(s3, s3, s2);
+    LWZ(s2, 0, s3);
     ADDI(s2, s2, -1);
-    STWCXd(s2, 0, s1);
-    BNE(-3 * 4);
+    STW(s2, 0, s3);
     MESSAGE(LOG_DUMP, "-------- doLeave\n");
 }
 
