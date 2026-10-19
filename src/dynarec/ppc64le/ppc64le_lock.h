@@ -46,6 +46,8 @@ extern void* ppc64le_lock_storeifref(void*p, void* val, void* ref);
 
 // Atomically store value to [p] only if [p] is ref. Return old [p] value (so val or old)
 extern void* ppc64le_lock_storeifref2(void*p, void* val, void* ref);
+// 16-byte CAS on an aligned address: 1 if replaced, else 0 with the current value in *old_lo/*old_hi
+extern int ppc64le_lock_cas_dq(void* p, uint64_t* old_lo, uint64_t* old_hi, uint64_t new_lo, uint64_t new_hi, uint64_t exp_lo, uint64_t exp_hi);
 
 // Atomically store value to [p] only if [p] is ref. Return new [p] value (so val or old)
 extern uint32_t ppc64le_lock_storeifref_d(void*p, uint32_t val, uint32_t ref);
