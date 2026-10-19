@@ -372,8 +372,10 @@ static int loadEmulatedLib(const char* libname, library_t *lib, box64context_t* 
         int env_changed = 0;
         #ifdef DYNAREC
         if(libname && BOX64ENV(dynarec_bleeding_edge) && strstr(libname, "libmonobdwgc-2.0.so")) {
-            printf_dump(LOG_INFO, "MonoBleedingEdge detected, disable Dynarec BigBlock and enable Dynarec StrongMem\n");
-            SET_BOX64ENV(dynarec_bigblock, 0);
+            printf_dump(LOG_INFO, "MonoBleedingEdge detected, disable Dynarec BigBlock for JIT (anonymous) memory and enable Dynarec StrongMem\n");
+            // Mono patches the code it generates while other threads run it: keep those blocks small.
+            // File-backed code (UnityPlayer, libmono...) never changes and keeps the BigBlock level.
+            box64_jit_anon_nobigblock = 1;
             SET_BOX64ENV(dynarec_strongmem, 1);
             env_changed = 1;
         }

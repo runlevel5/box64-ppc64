@@ -75,7 +75,7 @@ void add_next(dynarec_native_t* dyn, uintptr_t addr)
             dyn->next[dyn->next_sz++] = addr;
         return;
     }
-    if (!BOX64DRENV(dynarec_bigblock))
+    if (!BOX64DRBIGBLOCK())
         return;
     int ret;
     kh_put(nextset, khnextset, addr, &ret);

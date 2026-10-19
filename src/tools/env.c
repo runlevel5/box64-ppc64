@@ -26,6 +26,7 @@
 #include "cpumask.h"
 
 box64env_t box64env = { 0 };
+int box64_jit_anon_nobigblock = 0;
 
 KHASH_MAP_INIT_STR(box64env_entry, box64env_t)
 static kh_box64env_entry_t* box64env_entries = NULL;
