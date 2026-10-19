@@ -630,6 +630,13 @@
 #define DMB_ISH()              LWSYNC()
 #define DMB_ISHLD()            LWSYNC()
 #define DMB_ISHST()            LWSYNC()
+// All the strong memory barriers are LWSYNC here, so the one ending a SEQ adds nothing for the
+// ordering of the stores: the next SEQ starts with its own LWSYNC before its first store, and an
+// LWSYNC never orders a store before a later load. BOX64_DYNAREC_SEQENDBARRIER=0 drops it.
+#define SMEND_BARRIER()                             \
+    do {                                            \
+        if (BOX64ENV(dynarec_seqendbarrier)) LWSYNC(); \
+    } while (0)
 
 // Cache management
 // DCBST — data cache block store
