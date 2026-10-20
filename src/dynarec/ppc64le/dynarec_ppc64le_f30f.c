@@ -248,7 +248,7 @@ uintptr_t dynarec64_F30F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
             } else {
                 XXLOR(VSXREG(d1), VSXREG(d0), VSXREG(d0));
             }
-            XSSQRTDP(VSXREG(d1), VSXREG(d1));
+            XSSQRTSP(VSXREG(d1), VSXREG(d1)); // rounded to single: XSCVDPSPN below doesn't round
             if (!BOX64ENV(dynarec_fastnan)) {
                 // If input was negative (not NaN), sqrt produces positive NaN
                 // x86 expects negative NaN — OR in the sign bit

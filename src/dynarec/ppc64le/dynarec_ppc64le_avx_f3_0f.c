@@ -262,7 +262,7 @@ uintptr_t dynarec64_AVX_F3_0F(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t 
             } else {
                 XXLOR(VSXREG(d1), VSXREG(v2), VSXREG(v2));
             }
-            XSSQRTDP(VSXREG(d1), VSXREG(d1));
+            XSSQRTSP(VSXREG(d1), VSXREG(d1)); // rounded to single: XSCVDPSPN below doesn't round
             if (!BOX64ENV(dynarec_fastnan)) {
                 MFVSRD(x4, VSXREG(d1));
                 SRDI(x5, x4, 63);
