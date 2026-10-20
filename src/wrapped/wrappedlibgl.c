@@ -179,11 +179,11 @@ static void* find_get_blob_func_Fct(void* fct)
 }
 #undef SUPER
 
+// like the other PRE_INIT, ends with an else: the default dlopen only runs if BOX64_LIBGL didn't open
 #define PRE_INIT                                                                \
-    if(BOX64ENV(libgl)) {                                                       \
-        lib->w.lib = dlopen(BOX64ENV(libgl), RTLD_LAZY | RTLD_GLOBAL);          \
+    if(BOX64ENV(libgl) && (lib->w.lib = dlopen(BOX64ENV(libgl), RTLD_LAZY | RTLD_GLOBAL))) \
         lib->path = strdup(BOX64ENV(libgl));                                    \
-    }
+    else
 
 #include "wrappedlib_init.h"
 
