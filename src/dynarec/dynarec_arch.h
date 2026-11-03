@@ -152,6 +152,8 @@ extern void* create_updateflags();
 #define dynarec_native_t            dynarec_ppc64le_t
 #define extcache_native_t           vmxcache_t
 
+#define HAVE_IN_USED
+
 #define ADDITIONNAL_DEFINITION() \
     int fpuCacheNeedsTransform(dynarec_native_t* dyn, int ninst);
 

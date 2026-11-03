@@ -3492,7 +3492,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (BOX64DRENV(dynarec_callret) && addr >= (dyn->start + dyn->isize)) {
                         // return address is outside this block — emit landing pad
                         MARK;
-                        if (BOX64DRENV(dynarec_callret) >= 2) // the block is really left here, no continuation inside it
+                        if (BOX64DRENV(dynarec_callret) >= 3) // the block is really left here, no continuation inside it
                             doLeaveBlock(dyn, ninst, x4, x5, x6);
                         j64 = getJumpTableAddress64(addr);
                         if (dyn->need_reloc) {
@@ -4129,7 +4129,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (BOX64DRENV(dynarec_callret) && addr >= (dyn->start + dyn->isize)) {
                         // return address is outside this block — emit landing pad
                         MARK;
-                        if (BOX64DRENV(dynarec_callret) >= 2) // the block is really left here, no continuation inside it
+                        if (BOX64DRENV(dynarec_callret) >= 3) // the block is really left here, no continuation inside it
                             doLeaveBlock(dyn, ninst, x4, x5, x6);
                         j64 = getJumpTableAddress64(addr);
                         if (dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);
@@ -4193,7 +4193,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         if (BOX64DRENV(dynarec_callret) && addr >= (dyn->start + dyn->isize)) {
                             // return address is outside this block — emit landing pad
                             MARK;
-                            if (BOX64DRENV(dynarec_callret) >= 2) // the block is really left here, no continuation inside it
+                            if (BOX64DRENV(dynarec_callret) >= 3) // the block is really left here, no continuation inside it
                                 doLeaveBlock(dyn, ninst, x4, x5, x6);
                             j64 = getJumpTableAddress64(addr);
                             if (dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);

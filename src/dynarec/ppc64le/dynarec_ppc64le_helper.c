@@ -416,7 +416,7 @@ void jump_to_epilog(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst)
     TABLE64C(x2, const_epilog);
     SMEND();
     CHECK_DFNONE(0);
-    if (BOX64DRENV(dynarec_callret) >= 2)
+    if (BOX64DRENV(dynarec_callret) >= 3)
         doLeaveBlock(dyn, ninst, x4, x5, x6);
     MTCTR(x2);
     BCTR();
@@ -440,7 +440,7 @@ void jump_to_epilog_fast(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int nins
     TABLE64C(x2, const_epilog);
     SMEND();
     CHECK_DFNONE(0);
-    if (BOX64DRENV(dynarec_callret) >= 2)
+    if (BOX64DRENV(dynarec_callret) >= 3)
         doLeaveBlock(dyn, ninst, x4, x5, x6);
     MTCTR(x2);
     BCTR();
@@ -553,7 +553,7 @@ void jump_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int reg, int ninst, int 
     }
     CLEARIP();
     SMEND();
-    if (BOX64DRENV(dynarec_callret) >= 2 && !dyn->insts[ninst].x64.has_callret)
+    if (BOX64DRENV(dynarec_callret) >= 3 && !dyn->insts[ninst].x64.has_callret)
         doLeaveBlock(dyn, ninst, x4, x5, x6);
     // Branch to resolved target: use BCTRL for call-ret, BCTR otherwise
 #ifdef HAVE_TRACE
@@ -581,7 +581,7 @@ void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex)
         // read the top shadow return address from PPC64LE stack (popped only if it matches)
         LD(x4, 0, xSP);       // native addr
         LD(x6, 8, xSP);       // x86 addr
-        if (BOX64DRENV(dynarec_callret) >= 2)
+        if (BOX64DRENV(dynarec_callret) >= 3)
             doLeaveBlock(dyn, ninst, x5, x7, x3);
         // is it the right address?
         CMPD(x6, xRIP);
@@ -593,7 +593,7 @@ void ret_to_next(dynarec_ppc64le_t* dyn, uintptr_t ip, int ninst, rex_t rex)
         // not the correct return address, regular jump, but purge the stack first:
         // release the blocks kept in use by the pending returns (including the top one, still on the
         // stack: its block will never see this return), then reset the native SP
-        if (BOX64DRENV(dynarec_callret) >= 2) {
+        if (BOX64DRENV(dynarec_callret) >= 3) {
             MV(x3, xSP);
             CALL_(const_ppc64le_shadow_purge, -1, 0, x3, 0);
             MVz(x1, xRIP);
