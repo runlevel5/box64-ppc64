@@ -65,6 +65,21 @@ uintptr_t Run66F0(x64emu_t *emu, rex_t rex, uintptr_t addr)
                     GETEW(0);
                     GETGW;
 #if defined(DYNAREC) && !defined(TEST_INTERPRETER)
+                    if(((uintptr_t)EW)&1) {
+                        do {
+                            tmp16u = EW->word[0] & ~0xff;
+                            tmp16u |= native_lock_read_b(EW);
+                            cmp16(emu, R_AX, tmp16u);
+                            if(ACCESS_FLAG(F_ZF)) {
+                                tmp32s = native_lock_write_b(EW, GW->word[0]&0xff);
+                                if(!tmp32s)
+                                    EW->word[0] = GW->word[0];
+                            } else {
+                                R_AX = tmp16u;
+                                tmp32s = 0;
+                            }
+                        } while(tmp32s);
+                    } else
                     do {
                         tmp16u = native_lock_read_h(EW);
                         cmp16(emu, R_AX, tmp16u);
