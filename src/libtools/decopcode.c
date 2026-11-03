@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 #include <stdint.h>
 #include <sys/mman.h>
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__powerpc64__)
 #include <signal.h>
 #include <ucontext.h>
+#endif
+#if defined(__powerpc64__)
+#include <asm/ptrace.h>
 #endif
 
 #include "debug.h"
@@ -399,6 +402,13 @@ int write_opcode(uintptr_t rip, uintptr_t native_ip, int is32bits, void* uctx)
                 // Data abort from EL0 with WnR set, not a cache maintenance operation (bit 8)
                 return(esr&(1<<6))?1:0;
         }
+    }
+    #elif defined(__powerpc64__)
+    if(uctx) {
+        ucontext_t* p = (ucontext_t*)uctx;
+        // Data Storage Interrupt (0x300): DSISR bit 6 tells if the access was a store
+        if((p->uc_mcontext.gp_regs[PT_TRAP]&~0xfULL) == 0x300)
+            return (p->uc_mcontext.gp_regs[PT_DSISR]&0x02000000)?1:0;
     }
     #endif
     // TODO, on RiSCV and LoongArch, it would be easier to analyse the opcode at the native IP instead, as opcode that write to memory are more limited in quantity
