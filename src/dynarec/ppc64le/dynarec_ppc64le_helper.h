@@ -1250,15 +1250,6 @@
 #define IFX2X(A, B) if ((dyn->insts[ninst].x64.gen_flags == (A) || dyn->insts[ninst].x64.gen_flags == (B) || dyn->insts[ninst].x64.gen_flags == ((A) | (B))))
 #define IFXN(A, B)  if ((dyn->insts[ninst].x64.gen_flags & (A) && !(dyn->insts[ninst].x64.gen_flags & (B))))
 
-#ifndef NATIVE_RESTORE_X87PC
-#define NATIVE_RESTORE_X87PC()                   \
-    if (dyn->need_x87check) {                    \
-        LD(x87pc, offsetof(x64emu_t, cw), xEmu); \
-        SRDI(x87pc, x87pc, 8);                   \
-        ANDId(x87pc, x87pc, 0b11);               \
-    }
-#endif
-#ifndef X87_CHECK_PRECISION
 // x87 NaN handling for the arithmetic opcodes (used when BOX64_DYNAREC_FASTNAN=0): a NaN produced
 // by the operation itself (no NaN operand: inf-inf, 0*inf, 0/0, sqrt(-x)) is the negative "real
 // indefinite" on x87 but the positive default QNaN on POWER; NaN operands propagate (quieted, payload
@@ -1278,6 +1269,15 @@
         FNEG(vres, vres);                                      \
     } while (0)
 
+#ifndef NATIVE_RESTORE_X87PC
+#define NATIVE_RESTORE_X87PC()                   \
+    if (dyn->need_x87check) {                    \
+        LD(x87pc, offsetof(x64emu_t, cw), xEmu); \
+        SRDI(x87pc, x87pc, 8);                   \
+        ANDId(x87pc, x87pc, 0b11);               \
+    }
+#endif
+#ifndef X87_CHECK_PRECISION
 #define X87_CHECK_PRECISION(A)               \
     if (!ST_IS_F(0) && dyn->need_x87check) { \
         CMPDI(x87pc, 0);                     \
