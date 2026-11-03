@@ -948,7 +948,7 @@ void updateYmm0s(dynarec_ppc64le_t* dyn, int ninst, int max_ninst_reached)
 // list forever (with a JIT-heavy guest on 64K pages that was 100k+ blocks and a 20% CPU walk).
 void ppc64le_shadow_purge(x64emu_t* emu, uintptr_t sp)
 {
-    if (BOX64ENV(dynarec_callret) < 2) return;
+    if (BOX64ENV(dynarec_callret) < 3) return;
     uintptr_t top = emu->xSPSave;
     for (uintptr_t p = sp; p + 2 * sizeof(uintptr_t) <= top; p += 2 * sizeof(uintptr_t)) {
         dynablock_t* db = FindDynablockFromNativeAddress(*(void**)p);
