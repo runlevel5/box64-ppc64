@@ -2700,6 +2700,9 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
             } else {
                 INST_NAME("INT 3");
                 if (!BOX64ENV(ignoreint3)) {
+                    // the call below is conditional: clear a pending df before the branch so the
+                    // skipped path does not leave a stale deferred op behind (see ARM64 BOUND fix)
+                    CHECK_DFNONE(1);
                     // check if TRAP signal is handled
                     TABLE64C(x1, const_context);
                     MOV32w(x2, offsetof(box64context_t, signals[X64_SIGTRAP]));
@@ -2780,6 +2783,7 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 INST_NAME("INTO");
                 READFLAGS(X_OF);
                 GETIP(addr, x7);
+                CHECK_DFNONE(1); // conditional call below, see INT 3
                 ANDI(x1, xFlags, 1 << F_OF);
                 BEQZ_MARK(x1);
                 STORE_XEMU_CALL();
