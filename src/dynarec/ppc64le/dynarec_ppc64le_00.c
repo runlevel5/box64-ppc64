@@ -1312,17 +1312,43 @@ uintptr_t dynarec64_00(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 GETGD;
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                 // XCHG with memory is always atomic on x86, even without LOCK prefix
-                LWSYNC();
-                MARKLOCK;
                 if (rex.w) {
+                    if (!ALIGNED_ATOMICxw) {
+                        ANDI(x3, wback, 0b111);
+                        BNEZ_MARK2(x3);
+                    }
+                    LWSYNC();
+                    MARKLOCK;
                     LDARX(x1, 0, wback);
                     STDCXd(gd, 0, wback);
+                    BNE_MARKLOCK_CR0;
+                    LWSYNC();
+                    if (!ALIGNED_ATOMICxw) { B_MARK3_nocond; }
                 } else {
+                    if (!ALIGNED_ATOMICxw) {
+                        ANDI(x3, wback, 0b11);
+                        BNEZ_MARK(x3);
+                    }
+                    LWSYNC();
+                    MARKLOCK;
                     LWARX(x1, 0, wback);
                     STWCXd(gd, 0, wback);
+                    BNE_MARKLOCK_CR0;
+                    LWSYNC();
+                    if (!ALIGNED_ATOMICxw) {
+                        B_MARK3_nocond;
+                        MARK;
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
+                        LOCK_32_IN_8BYTE(MR(x4, gd), x1, wback, x3, x4, x5, x6); // x1 = old value
+                        B_MARK3_nocond;
+                    }
                 }
-                BNE_MARKLOCK_CR0;
-                LWSYNC();
+                if (!ALIGNED_ATOMICxw) {
+                    MARK2;
+                    LOCK_3264_CROSS_8BYTE(MR(x4, gd), x1, wback, x4, x5, x6);
+                    MARK3;
+                }
                 MVxw(gd, x1);
             }
             break;

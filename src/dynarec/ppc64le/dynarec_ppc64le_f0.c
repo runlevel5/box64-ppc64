@@ -1491,24 +1491,7 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 }
                 if (!ALIGNED_ATOMICxw) {
                     MARK2;
-                    // Cross 8-byte boundary: best-effort
-                    RLDICR(x6, wback, 0, 60);
-                    LWSYNC();
-                    MARKLOCK;
-                    LDARX(x5, 0, x6);
-                    if (rex.w) {
-                        LD(x1, 0, wback);
-                    } else {
-                        LWZ(x1, 0, wback);
-                    }
-                    if (rex.w) {
-                        STD(gd, 0, wback);
-                    } else {
-                        STW(gd, 0, wback);
-                    }
-                    STDCXd(x5, 0, x6);
-                    BNE_MARKLOCK_CR0;
-                    LWSYNC();
+                    LOCK_3264_CROSS_8BYTE(MR(x4, gd), x1, wback, x4, x5, x6);
                     MARK3;
                 }
                 MVxw(gd, x1);
