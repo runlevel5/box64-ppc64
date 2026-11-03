@@ -328,11 +328,13 @@ uintptr_t dynarec64_D9(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 INST_NAME("FSQRT");
                 v1 = x87_get_st(dyn, ninst, x1, x2, 0, X87_ST0);
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v1);
                 if (ST_IS_F(0)) {
                     FSQRTS(v1, v1);
                 } else {
                     FSQRT(v1, v1);
                 }
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 X87_CHECK_PRECISION(v1);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
                 break;

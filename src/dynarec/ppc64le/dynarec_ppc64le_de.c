@@ -45,9 +45,13 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 if (ST_IS_F(0)) {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FADDS(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 } else {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FADD(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 }
                 X87_CHECK_PRECISION(v1);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
@@ -59,9 +63,13 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 if (ST_IS_F(0)) {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FMULS(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 } else {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FMUL(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 }
                 X87_CHECK_PRECISION(v1);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
@@ -96,9 +104,13 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 if (ST_IS_F(0)) {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v2, v1);
                     FSUBS(v1, v2, v1);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 } else {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v2, v1);
                     FSUB(v1, v2, v1);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 }
                 X87_CHECK_PRECISION(v1);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
@@ -110,9 +122,13 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 if (ST_IS_F(0)) {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FSUBS(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 } else {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FSUB(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 }
                 X87_CHECK_PRECISION(v1);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
@@ -124,9 +140,13 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 if (ST_IS_F(0)) {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v2, v1);
                     FDIVS(v1, v2, v1);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 } else {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v2, v1);
                     FDIV(v1, v2, v1);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 }
                 X87_CHECK_PRECISION(v1);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
@@ -138,9 +158,13 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 v1 = x87_get_st(dyn, ninst, x1, x2, nextop & 7, X87_COMBINE(0, nextop & 7));
                 if (!BOX64ENV(dynarec_fastround)) u8 = x87_setround(dyn, ninst, x1, x5);
                 if (ST_IS_F(0)) {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FDIVS(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 } else {
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                     FDIV(v1, v1, v2);
+                    if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 }
                 X87_CHECK_PRECISION(v1);
                 if (!BOX64ENV(dynarec_fastround)) x87_restoreround(dyn, ninst, u8);
@@ -161,7 +185,9 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 EXTSH(x2, x2);
                 MTVSRD(v2, x2);
                 FCFID(v2, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                 FADD(v1, v1, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 X87_CHECK_PRECISION(v1);
                 break;
             case 1:
@@ -173,7 +199,9 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 EXTSH(x2, x2);
                 MTVSRD(v2, x2);
                 FCFID(v2, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                 FMUL(v1, v1, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 X87_CHECK_PRECISION(v1);
                 break;
             case 2:
@@ -208,7 +236,9 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 EXTSH(x2, x2);
                 MTVSRD(v2, x2);
                 FCFID(v2, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                 FSUB(v1, v1, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 X87_CHECK_PRECISION(v1);
                 break;
             case 5:
@@ -220,7 +250,9 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 EXTSH(x2, x2);
                 MTVSRD(v2, x2);
                 FCFID(v2, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v2, v1);
                 FSUB(v1, v2, v1);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 X87_CHECK_PRECISION(v1);
                 break;
             case 6:
@@ -232,7 +264,9 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 EXTSH(x2, x2);
                 MTVSRD(v2, x2);
                 FCFID(v2, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v1, v2);
                 FDIV(v1, v1, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 X87_CHECK_PRECISION(v1);
                 break;
             case 7:
@@ -244,7 +278,9 @@ uintptr_t dynarec64_DE(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                 EXTSH(x2, x2);
                 MTVSRD(v2, x2);
                 FCFID(v2, v2);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_START(v2, v1);
                 FDIV(v1, v2, v1);
+                if (!BOX64ENV(dynarec_fastnan)) X87_ARITH_NAN_END(v1);
                 X87_CHECK_PRECISION(v1);
                 break;
         }

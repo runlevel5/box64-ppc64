@@ -79,13 +79,20 @@ run_one_test() {
 
     TOTAL=$((TOTAL + 1))
 
+    # Optional per-test environment: tests/dynarec/<name>.env with KEY=VALUE lines
+    local envfile="$SCRIPT_DIR/${name}.env"
+    local extra_env=()
+    if [ -f "$envfile" ]; then
+        mapfile -t extra_env < <(grep -v '^#' "$envfile" | grep '=')
+    fi
+
     # Run in interpreter mode
     local interp_output
-    interp_output=$(BOX64_DYNAREC=0 BOX64_LOG=${BOX64_LOG:-0} "$BOX64" "$bin" 2>/dev/null) || true
+    interp_output=$(env "${extra_env[@]}" BOX64_DYNAREC=0 BOX64_LOG=${BOX64_LOG:-0} "$BOX64" "$bin" 2>/dev/null) || true
 
     # Run in dynarec mode
     local dyn_output
-    dyn_output=$(BOX64_DYNAREC=1 BOX64_LOG=${BOX64_LOG:-0} "$BOX64" "$bin" 2>/dev/null) || true
+    dyn_output=$(env "${extra_env[@]}" BOX64_DYNAREC=1 BOX64_LOG=${BOX64_LOG:-0} "$BOX64" "$bin" 2>/dev/null) || true
 
     # Compare
     if [ "$dyn_output" != "$interp_output" ]; then
