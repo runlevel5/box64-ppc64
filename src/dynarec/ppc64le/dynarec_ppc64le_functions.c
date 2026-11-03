@@ -1117,6 +1117,7 @@ void updateUpperLiveness(dynarec_ppc64le_t* dyn)
 void updateInUseTracking(dynarec_ppc64le_t* dyn)
 {
     dyn->track_inuse = 0;
+    if (BOX64DRENV(dynarec_callret) < 3) return; // no enter/leave emitted: don't allocate a counter either
     if (BOX64ENV(dynarec_inuse_all)) { dyn->track_inuse = 1; return; }
     for (int i = 0; i < dyn->size; ++i)
         if (dyn->insts[i].x64.has_callret) { dyn->track_inuse = 1; return; }
@@ -1145,10 +1146,16 @@ uint32_t* ppc64le_inuse_newthread(void)
         printf_log(LOG_NONE, "Error: cannot reserve the dynarec in_used counters of a new thread\n");
         abort();
     }
+    int slot = -1;
     pthread_mutex_lock(&inuse_mutex);
-    for (int i = 0; i < INUSE_MAXEMU; ++i)
-        if (!inuse_arrays[i]) { inuse_arrays[i] = p; break; }
+    for (int i = 0; i < INUSE_MAXEMU && slot < 0; ++i)
+        if (!inuse_arrays[i]) { inuse_arrays[i] = p; slot = i; }
     pthread_mutex_unlock(&inuse_mutex);
+    if (slot < 0) {
+        // an unregistered thread would be invisible to ppc64le_inuse_count: a block it runs could be freed
+        printf_log(LOG_NONE, "Error: too many threads for the dynarec in_used counters (%d)\n", INUSE_MAXEMU);
+        abort();
+    }
     return p;
 }
 
