@@ -584,22 +584,25 @@
 // ===========================================================================
 // CR logical operations (XL-form, opcode 19)
 // ===========================================================================
+// XL_gen is the branch flavour with a 2-bit BH field; the CR logical ops take a 5-bit BB
+#define XLcr_gen(opcd, bt, ba, bb, xo) \
+    ((uint32_t)(opcd) << 26 | ((bt) & 0x1F) << 21 | ((ba) & 0x1F) << 16 | ((bb) & 0x1F) << 11 | ((xo) & 0x3FF) << 1)
 // CRAND — CR[BT] = CR[BA] & CR[BB]
-#define CRAND(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 257, 0))
+#define CRAND(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 257))
 // CRANDC — CR[BT] = CR[BA] & ~CR[BB]
-#define CRANDC(bt, ba, bb)     EMIT(XL_gen(19, bt, ba, bb, 129, 0))
+#define CRANDC(bt, ba, bb)     EMIT(XLcr_gen(19, bt, ba, bb, 129))
 // CROR — CR[BT] = CR[BA] | CR[BB]
-#define CROR(bt, ba, bb)       EMIT(XL_gen(19, bt, ba, bb, 449, 0))
+#define CROR(bt, ba, bb)       EMIT(XLcr_gen(19, bt, ba, bb, 449))
 // CRORC — CR[BT] = CR[BA] | ~CR[BB]
-#define CRORC(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 417, 0))
+#define CRORC(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 417))
 // CRXOR — CR[BT] = CR[BA] ^ CR[BB]
-#define CRXOR(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 193, 0))
+#define CRXOR(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 193))
 // CRNAND — CR[BT] = ~(CR[BA] & CR[BB])
-#define CRNAND(bt, ba, bb)     EMIT(XL_gen(19, bt, ba, bb, 225, 0))
+#define CRNAND(bt, ba, bb)     EMIT(XLcr_gen(19, bt, ba, bb, 225))
 // CRNOR — CR[BT] = ~(CR[BA] | CR[BB])
-#define CRNOR(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 33, 0))
+#define CRNOR(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 33))
 // CREQV — CR[BT] = ~(CR[BA] ^ CR[BB])
-#define CREQV(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 289, 0))
+#define CREQV(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 289))
 // CRSET — set CR bit (pseudo: creqv bt, bt, bt)
 #define CRSET(bt)              CREQV(bt, bt, bt)
 // CRCLR — clear CR bit (pseudo: crxor bt, bt, bt)
