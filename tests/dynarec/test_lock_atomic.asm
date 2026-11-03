@@ -66,6 +66,23 @@ section .data
     t60_name: db "lock xadd dword unaligned+1 mem", 0
     t61_name: db "lock dec dword unaligned+5", 0
     t62_name: db "lock neg dword unaligned+6", 0
+    t63_name: db "xchg dword unaligned+1 old", 0
+    t64_name: db "xchg dword unaligned+1 mem", 0
+    t65_name: db "xchg dword unaligned+5 old", 0
+    t66_name: db "xchg dword unaligned+5 mem", 0
+    t67_name: db "xchg qword unaligned+3 old", 0
+    t68_name: db "xchg qword unaligned+3 mem", 0
+    t69_name: db "lock add word unaligned+1", 0
+    t70_name: db "lock add word unaligned+1 neighbours", 0
+    t71_name: db "lock inc word unaligned+7", 0
+    t72_name: db "lock dec word unaligned+3", 0
+    t73_name: db "lock xadd word unaligned+5 old", 0
+    t74_name: db "lock xadd word unaligned+5 mem", 0
+    t75_name: db "lock add word imm16 unaligned+7", 0
+    t76_name: db "lock add word imm8 unaligned+1", 0
+    t77_name: db "lock cmpxchg word unaligned+3 match", 0
+    t78_name: db "lock cmpxchg word unaligned+3 mismatch mem", 0
+    t79_name: db "lock cmpxchg word unaligned+3 mismatch AX", 0
 
 section .bss
     alignb 8
@@ -627,5 +644,83 @@ _start:
     TEST_CASE t62_name
     mov eax, [rbx+6]
     CHECK_EQ_32 eax, 0xFDFEFE01
+
+    ; ==== Tests 63-79: unaligned XCHG [mem] (implicitly locked) and halfword LOCK ops ====
+    lea rbx, [rel val16]
+    mov rax, 0x1111111111111111
+    mov [rbx], rax
+    mov rax, 0x2222222222222222
+    mov [rbx+8], rax
+    mov eax, 0xA5A5A5A5
+    xchg [rbx+1], eax
+    mov r15d, eax
+    TEST_CASE t63_name
+    CHECK_EQ_32 r15d, 0x11111111
+    TEST_CASE t64_name
+    mov rax, [rbx]
+    CHECK_EQ_64 rax, 0x111111A5A5A5A511
+    mov eax, 0x5A5A5A5A
+    xchg [rbx+5], eax
+    mov r15d, eax
+    TEST_CASE t65_name
+    CHECK_EQ_32 r15d, 0x22111111
+    TEST_CASE t66_name
+    mov rax, [rbx+8]
+    CHECK_EQ_64 rax, 0x222222222222225A
+    mov rax, 0x0123456789ABCDEF
+    xchg [rbx+3], rax
+    mov r15, rax
+    TEST_CASE t67_name
+    CHECK_EQ_64 r15, 0x22225A5A5A5AA5A5
+    TEST_CASE t68_name
+    mov rax, [rbx+3]
+    CHECK_EQ_64 rax, 0x0123456789ABCDEF
+    mov cx, 0x0101
+    lock add word [rbx+1], cx
+    TEST_CASE t69_name
+    movzx eax, word [rbx+1]
+    CHECK_EQ_32 eax, 0xA6A6
+    TEST_CASE t70_name
+    mov rax, [rbx]
+    CHECK_EQ_64 rax, 0x6789ABCDEFA6A611
+    lock inc word [rbx+7]
+    TEST_CASE t71_name
+    movzx eax, word [rbx+7]
+    CHECK_EQ_32 eax, 0x4568
+    lock dec word [rbx+3]
+    TEST_CASE t72_name
+    movzx eax, word [rbx+3]
+    CHECK_EQ_32 eax, 0xCDEE
+    mov cx, 0x10
+    lock xadd word [rbx+5], cx
+    movzx r15d, cx
+    TEST_CASE t73_name
+    CHECK_EQ_32 r15d, 0x89AB
+    TEST_CASE t74_name
+    movzx eax, word [rbx+5]
+    CHECK_EQ_32 eax, 0x89BB
+    lock add word [rbx+7], 0x7FFF
+    TEST_CASE t75_name
+    movzx eax, word [rbx+7]
+    CHECK_EQ_32 eax, 0xC567
+    lock add word [rbx+1], -3
+    TEST_CASE t76_name
+    movzx eax, word [rbx+1]
+    CHECK_EQ_32 eax, 0xA6A3
+    mov ax, 0xCDEE
+    mov cx, 0xBEEF
+    lock cmpxchg word [rbx+3], cx
+    TEST_CASE t77_name
+    movzx eax, word [rbx+3]
+    CHECK_EQ_32 eax, 0xBEEF
+    mov ax, 0x1234
+    mov cx, 0xCAFE
+    lock cmpxchg word [rbx+3], cx
+    movzx r15d, ax
+    TEST_CASE t78_name
+    movzx eax, word [rbx+3]
+    CHECK_EQ_32 eax, 0xBEEF
+    TEST_CASE t79_name
+    CHECK_EQ_32 r15d, 0xBEEF
 
     END_TESTS

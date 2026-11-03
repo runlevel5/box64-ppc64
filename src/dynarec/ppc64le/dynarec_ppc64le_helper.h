@@ -2923,6 +2923,54 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         LWSYNC();                                        \
     } while (0)
 
+// LOCK_16_IN_8BYTE: same as LOCK_32_IN_8BYTE for a halfword at an odd offset 1/3/5
+#define LOCK_16_IN_8BYTE(op, s1, wback, s3, s4, s5, s6) \
+    do {                                                \
+        ANDI(s3, wback, 0b111);                         \
+        SLDI(s3, s3, 3);                                \
+        RLDICR(s6, wback, 0, 60);                       \
+        LWSYNC();                                       \
+        MARKLOCK;                                       \
+        LDARX(s5, 0, s6);                               \
+        SRD(s1, s5, s3);                                \
+        RLDICL(s1, s1, 0, 48); /* s1 = old halfword */  \
+        op;                    /* s4 = f(s1, operand) */ \
+        XOR(s4, s4, s1);                                \
+        RLDICL(s4, s4, 0, 48);                          \
+        SLD(s4, s4, s3);                                \
+        XOR(s4, s5, s4);                                \
+        STDCXd(s4, 0, s6);                              \
+        BNE_MARKLOCK_CR0;                               \
+        LWSYNC();                                       \
+    } while (0)
+
+// LOCK_16_CROSS_8BYTE: halfword at offset 7, plain fenced load/modify/store
+#define LOCK_16_CROSS_8BYTE(op, s1, wback, s4) \
+    do {                                       \
+        LWSYNC();                              \
+        LHZ(s1, 0, wback);                     \
+        op;                                    \
+        STH(s4, 0, wback);                     \
+        LWSYNC();                              \
+    } while (0)
+
+// LOCK_16_UNALIGNED: the odd-address fallback of a halfword LOCK op. The aligned lharx/sthcx.
+// path is emitted between an "ANDI(s3, wback, 1); BNEZ_MARK(s3);" test and this; it ends with
+// MARK3 so the aligned path falls through to it. s1 = old value, op computes the new value in s4.
+#define LOCK_16_UNALIGNED(op, s1, wback, s3, s4, s5, s6) \
+    do {                                                 \
+        B_MARK3_nocond;                                  \
+        MARK;                                            \
+        ANDI(s3, wback, 0b111);                          \
+        LI(s4, 7);                                       \
+        BEQ_MARK2(s3, s4); /* offset 7 crosses the 8-byte block */ \
+        LOCK_16_IN_8BYTE(op, s1, wback, s3, s4, s5, s6); \
+        B_MARK3_nocond;                                  \
+        MARK2;                                           \
+        LOCK_16_CROSS_8BYTE(op, s1, wback, s4);          \
+        MARK3;                                           \
+    } while (0)
+
 #ifndef SCRATCH_USAGE
 #define SCRATCH_USAGE(usage)
 #endif

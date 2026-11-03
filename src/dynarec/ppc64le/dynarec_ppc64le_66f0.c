@@ -57,6 +57,10 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 GETGW(x5);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                 // PPC64LE has native LHARX/STHCXd for halfword atomics
+                if (!ALIGNED_ATOMICH) {
+                    ANDI(x3, wback, 1);
+                    BNEZ_MARK(x3); // odd address: lharx would trap
+                }
                 LWSYNC();
                 MARKLOCK;
                 LHARX(x1, 0, wback);
@@ -65,6 +69,7 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 STHCXd(x4, 0, wback);
                 BNE_MARKLOCK_CR0;
                 LWSYNC();
+                if (!ALIGNED_ATOMICH) LOCK_16_UNALIGNED(ADD(x4, x1, x5), x1, wback, x3, x4, x7, x6);
                 IFXORNAT (X_ALL | X_PEND) {
                     BF_EXTRACT(x6, x1, 15, 0);
                     emit_add16(dyn, ninst, x6, x5, x3, x4, x7, x1);
@@ -83,13 +88,19 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                 SETFLAGS(X_ALL, SF_SET_PENDING, NAT_FLAGS_FUSION);
                 GETGW(x5);
                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
+                if (!ALIGNED_ATOMICH) {
+                    ANDI(x3, wback, 1);
+                    BNEZ_MARK(x3); // odd address: lharx would trap
+                }
                 LWSYNC();
                 MARKLOCK;
                 LHARX(x1, 0, wback);
                 OR(x4, x1, x5);
+                RLDICL(x4, x4, 0, 48); // zero-extend to 16 bits
                 STHCXd(x4, 0, wback);
                 BNE_MARKLOCK_CR0;
                 LWSYNC();
+                if (!ALIGNED_ATOMICH) LOCK_16_UNALIGNED(OR(x4, x1, x5), x1, wback, x3, x4, x7, x6);
                 IFXORNAT (X_ALL | X_PEND) {
                     BF_EXTRACT(x6, x1, 15, 0);
                     emit_or16(dyn, ninst, x6, x5, x3, x4);
@@ -151,6 +162,10 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         BF_EXTRACT(x6, xRAX, 15, 0); // x6 = AX (expected)
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                         // Halfword CMPXCHG using LHARX/STHCXd
+                        if (!ALIGNED_ATOMICH) {
+                            ANDI(x3, wback, 1);
+                            BNEZ_MARK(x3); // odd address: lharx would trap
+                        }
                         LWSYNC();
                         MARKLOCK;
                         LHARX(x1, 0, wback);       // x1 = current halfword
@@ -160,6 +175,8 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         STHCXd(gd, 0, wback); // store Gw
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
+                        // unaligned: store Gw when equal, the old value otherwise (x86 always writes)
+                        if (!ALIGNED_ATOMICH) LOCK_16_UNALIGNED(CMPW(x1, x6); ISEL(x4, gd, x1, 2), x1, wback, x3, x4, x7, x5);
                         // x1 = old value, x6 = expected (AX)
                         CMPW(x1, x6);
                         BEQ(2 * 4);                 // skip if equal (AX unchanged)
@@ -299,6 +316,10 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         GETGD;
                         BF_EXTRACT(x5, gd, 15, 0);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
+                        if (!ALIGNED_ATOMICH) {
+                            ANDI(x3, wback, 1);
+                            BNEZ_MARK(x3); // odd address: lharx would trap
+                        }
                         LWSYNC();
                         MARKLOCK;
                         LHARX(x1, 0, wback);
@@ -307,6 +328,7 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         STHCXd(x4, 0, wback);
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
+                        if (!ALIGNED_ATOMICH) LOCK_16_UNALIGNED(ADD(x4, x1, x5), x1, wback, x3, x4, x7, x6);
                         IFXORNAT (X_ALL | X_PEND) {
                             BF_EXTRACT(x6, x1, 15, 0);
                             emit_add16(dyn, ninst, x6, gd, x3, x4, x5, x7);
@@ -342,14 +364,19 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         else
                             u64 = (uint16_t)(int16_t)F8S;
                         MOV64x(x5, u64);
+                        if (!ALIGNED_ATOMICH) {
+                            ANDI(x3, wback, 1);
+                            BNEZ_MARK(x3); // odd address: lharx would trap
+                        }
                         LWSYNC();
                         MARKLOCK;
                         LHARX(x1, 0, wback);
                         ADD(x4, x1, x5);
-                        RLDICL(x4, x4, 0, 48);
+                        RLDICL(x4, x4, 0, 48); // zero-extend to 16 bits
                         STHCXd(x4, 0, wback);
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
+                        if (!ALIGNED_ATOMICH) LOCK_16_UNALIGNED(ADD(x4, x1, x5), x1, wback, x3, x4, x7, x6);
                         IFXORNAT (X_ALL | X_PEND) {
                             BF_EXTRACT(x6, x1, 15, 0);
                             emit_add16(dyn, ninst, x6, x5, x3, x4, x7, x1);
@@ -373,14 +400,19 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         INST_NAME("LOCK INC Ew");
                         SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
+                        if (!ALIGNED_ATOMICH) {
+                            ANDI(x3, wback, 1);
+                            BNEZ_MARK(x3); // odd address: lharx would trap
+                        }
                         LWSYNC();
                         MARKLOCK;
                         LHARX(x1, 0, wback);
                         ADDI(x4, x1, 1);
-                        RLDICL(x4, x4, 0, 48);
+                        RLDICL(x4, x4, 0, 48); // zero-extend to 16 bits
                         STHCXd(x4, 0, wback);
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
+                        if (!ALIGNED_ATOMICH) LOCK_16_UNALIGNED(ADDI(x4, x1, 1), x1, wback, x3, x4, x7, x6);
                         IFXORNAT (X_ALL | X_PEND) {
                             ADDI(x5, xZR, 1);
                             BF_EXTRACT(x6, x1, 15, 0);
@@ -398,14 +430,19 @@ uintptr_t dynarec64_66F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, i
                         INST_NAME("LOCK DEC Ew");
                         SETFLAGS(X_ALL & ~X_CF, SF_SUBSET, NAT_FLAGS_FUSION);
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
+                        if (!ALIGNED_ATOMICH) {
+                            ANDI(x3, wback, 1);
+                            BNEZ_MARK(x3); // odd address: lharx would trap
+                        }
                         LWSYNC();
                         MARKLOCK;
                         LHARX(x1, 0, wback);
                         ADDI(x4, x1, -1);
-                        RLDICL(x4, x4, 0, 48);
+                        RLDICL(x4, x4, 0, 48); // zero-extend to 16 bits
                         STHCXd(x4, 0, wback);
                         BNE_MARKLOCK_CR0;
                         LWSYNC();
+                        if (!ALIGNED_ATOMICH) LOCK_16_UNALIGNED(ADDI(x4, x1, -1), x1, wback, x3, x4, x7, x6);
                         IFXORNAT (X_ALL | X_PEND) {
                             ADDI(x5, xZR, -1);
                             BF_EXTRACT(x6, x1, 15, 0);
