@@ -238,8 +238,7 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
         ret = hint;
     }
     if (rex.seg && !seg_done) {
-        if (scratch == ret)
-            scratch = ret + 1;
+        // ret is hint, a guest register or xRIP, never the caller's scratch
         SCRATCH_USAGE(1);
         grab_segdata(dyn, addr, ninst, scratch, rex.seg);
         // seg offset is 64bits, so no truncation here
@@ -326,8 +325,6 @@ uintptr_t geted16(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nex
     }
 
     if (rex.seg) {
-        if (scratch == ret)
-            scratch = ret + 1;
         SCRATCH_USAGE(1);
         grab_segdata(dyn, addr, ninst, scratch, rex.seg);
         // seg offset is 64bits, so no truncation here
