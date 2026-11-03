@@ -39,14 +39,21 @@ section .data
     t33_name: db "xchg [mem] dword", 0
     t34_name: db "xchg [mem] qword", 0
     t35_name: db "lock add dword imm", 0
-    t36_name: db "lock bts dword unaligned+1 reg", 0
-    t37_name: db "lock bts dword unaligned+3 imm", 0
-    t38_name: db "lock bts dword unaligned+3 imm CF=1", 0
-    t39_name: db "lock btr dword unaligned+2 reg", 0
-    t40_name: db "lock btr dword unaligned+1 imm31", 0
-    t41_name: db "lock bts qword unaligned+5 reg", 0
-    t42_name: db "lock btr qword unaligned+1 imm60", 0
-    t43_name: db "lock bts dword negative bit offset", 0
+    t36_name: db "lock bts dword unaligned+1 reg mem", 0
+    t37_name: db "lock bts dword unaligned+1 reg CF", 0
+    t38_name: db "lock bts dword unaligned+3 imm mem", 0
+    t39_name: db "lock bts dword unaligned+3 imm CF", 0
+    t40_name: db "lock bts dword unaligned+3 imm CF=1", 0
+    t41_name: db "lock btr dword unaligned+2 reg mem", 0
+    t42_name: db "lock btr dword unaligned+2 reg CF", 0
+    t43_name: db "lock btr dword unaligned+1 imm31 mem", 0
+    t44_name: db "lock btr dword unaligned+1 imm31 CF", 0
+    t45_name: db "lock bts qword unaligned+5 reg mem", 0
+    t46_name: db "lock bts qword unaligned+5 reg CF", 0
+    t47_name: db "lock btr qword unaligned+1 imm60 mem", 0
+    t48_name: db "lock btr qword unaligned+1 imm60 CF", 0
+    t49_name: db "lock bts dword negative bit offset mem", 0
+    t50_name: db "lock bts dword negative bit offset CF", 0
 
 section .bss
     alignb 8
@@ -462,88 +469,95 @@ _start:
     mov eax, [rbx]
     CHECK_EQ_32 eax, 0x80000000
 
-    ; ==== Tests 36-43: LOCK BTS/BTR on unaligned addresses ====
+    ; ==== Tests 36-50: LOCK BTS/BTR on unaligned addresses ====
     ; lock bts/btr on an unaligned dword/qword is legal on x86; the dynarec must not
     ; use a naturally aligned load-reserve on the guest address.
-    TEST_CASE t36_name
     lea rbx, [rel val16]
     mov qword [rbx], 0
     mov qword [rbx+8], 0
     mov ecx, 5
     lock bts dword [rbx+1], ecx
     SAVE_FLAGS
+    TEST_CASE t36_name
     mov eax, [rbx+1]
     CHECK_EQ_32 eax, 0x00000020
+    TEST_CASE t37_name
     CHECK_FLAGS_EQ CF, 0
 
-    TEST_CASE t37_name
     lea rbx, [rel val16]
     mov qword [rbx], 0
     mov qword [rbx+8], 0
     lock bts dword [rbx+3], 13
     SAVE_FLAGS
+    TEST_CASE t38_name
     mov eax, [rbx+3]
     CHECK_EQ_32 eax, 0x00002000
+    TEST_CASE t39_name
     CHECK_FLAGS_EQ CF, 0
 
-    TEST_CASE t38_name
-    lock bts dword [rbx+3], 13         ; bit already set from test 37
+    lock bts dword [rbx+3], 13         ; bit already set from the previous op
     SAVE_FLAGS
+    TEST_CASE t40_name
     CHECK_FLAGS_EQ CF, CF
 
-    TEST_CASE t39_name
     lea rbx, [rel val16]
     mov qword [rbx], -1
     mov qword [rbx+8], -1
     mov ecx, 17
     lock btr dword [rbx+2], ecx
     SAVE_FLAGS
+    TEST_CASE t41_name
     mov eax, [rbx+2]
     CHECK_EQ_32 eax, 0xFFFDFFFF
+    TEST_CASE t42_name
     CHECK_FLAGS_EQ CF, CF
 
-    TEST_CASE t40_name
     lea rbx, [rel val16]
     mov qword [rbx], -1
     mov qword [rbx+8], -1
     lock btr dword [rbx+1], 31
     SAVE_FLAGS
+    TEST_CASE t43_name
     mov eax, [rbx+1]
     CHECK_EQ_32 eax, 0x7FFFFFFF
+    TEST_CASE t44_name
     CHECK_FLAGS_EQ CF, CF
 
-    TEST_CASE t41_name
     lea rbx, [rel val16]
     mov qword [rbx], 0
     mov qword [rbx+8], 0
     mov rcx, 40
     lock bts qword [rbx+5], rcx
     SAVE_FLAGS
+    TEST_CASE t45_name
     mov rax, [rbx+5]
     CHECK_EQ_64 rax, 0x0000010000000000
+    TEST_CASE t46_name
     CHECK_FLAGS_EQ CF, 0
 
-    TEST_CASE t42_name
     lea rbx, [rel val16]
     mov qword [rbx], -1
     mov qword [rbx+8], -1
     lock btr qword [rbx+1], 60
     SAVE_FLAGS
+    TEST_CASE t47_name
     mov rax, [rbx+1]
     CHECK_EQ_64 rax, 0xEFFFFFFFFFFFFFFF
+    TEST_CASE t48_name
     CHECK_FLAGS_EQ CF, CF
 
     ; register form: the bit offset is signed and byte-addresses below the base
     ; bit -3 -> byte -1, bit 5 -> bit 29 of the dword at [rbx-4]
-    TEST_CASE t43_name
     lea rbx, [rel val16+8]
     mov qword [rbx-8], 0
     mov qword [rbx], 0
     mov ecx, -3
     lock bts dword [rbx], ecx
     SAVE_FLAGS
+    TEST_CASE t49_name
     mov eax, [rbx-4]
     CHECK_EQ_32 eax, 0x20000000
+    TEST_CASE t50_name
     CHECK_FLAGS_EQ CF, 0
 
     END_TESTS
