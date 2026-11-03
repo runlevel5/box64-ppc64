@@ -200,17 +200,20 @@ uintptr_t geted(dynarec_ppc64le_t* dyn, uintptr_t addr, int ninst, uint8_t nexto
             }
         } else {
             if (i64 >= -32768 && i64 <= 32767) {
+                // keep scratch for the segment base below: the guest base register goes in base
+                int base;
                 if ((nextop & 7) == 4) {
                     if (sib_reg != 4) {
                         SLADDy(scratch, TO_NAT(sib_reg), TO_NAT(sib_reg2), sib >> 6);
                         SCRATCH_USAGE(1);
+                        base = scratch;
                     } else {
-                        scratch = TO_NAT(sib_reg2);
+                        base = TO_NAT(sib_reg2);
                     }
                 } else {
-                    scratch = TO_NAT((nextop & 0x07) + (rex.b << 3));
+                    base = TO_NAT((nextop & 0x07) + (rex.b << 3));
                 }
-                ADDIy(ret, scratch, i64);
+                ADDIy(ret, base, i64);
                 if (!IS_GPR(ret)) SCRATCH_USAGE(1);
             } else {
                 MOV64y(scratch, i64);
