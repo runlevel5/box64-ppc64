@@ -782,6 +782,7 @@ int sigbus_specialcases(siginfo_t* info, void * ucntx, void* pc, void* _fpsimd, 
         if(is32bits) addr = (uint8_t*)(((uintptr_t)addr)&0xffffffff);
         int size = 0;
         int is_store = 0;
+        int brx = 0;
         switch(xo) {
             case 279: size = 2; is_store = 0; break;  // LHZX
             case 23:  size = 4; is_store = 0; break;  // LWZX
@@ -789,7 +790,23 @@ int sigbus_specialcases(siginfo_t* info, void * ucntx, void* pc, void* _fpsimd, 
             case 407: size = 2; is_store = 1; break;  // STHX
             case 151: size = 4; is_store = 1; break;  // STWX
             case 149: size = 8; is_store = 1; break;  // STDX
+            case 790: size = 2; is_store = 0; brx = 1; break;   // LHBRX
+            case 918: size = 2; is_store = 1; brx = 1; break;   // STHBRX
             default: size = 0; break;
+        }
+        if(size && brx) {
+            if(is_store) {
+                uint64_t value = p->uc_mcontext.gp_regs[rt_rs];
+                for(int i=0; i<size; ++i)
+                    addr[size-1-i] = (value>>(i*8))&0xff;
+            } else {
+                uint64_t value = 0;
+                for(int i=0; i<size; ++i)
+                    value |= ((uint64_t)addr[size-1-i]) << (i*8);
+                p->uc_mcontext.gp_regs[rt_rs] = value;
+            }
+            p->uc_mcontext.gp_regs[PT_NIP]+=4;
+            return 1;
         }
         if(size) {
             if(is_store) {
@@ -813,6 +830,83 @@ int sigbus_specialcases(siginfo_t* info, void * ucntx, void* pc, void* _fpsimd, 
             p->uc_mcontext.gp_regs[PT_NIP]+=4;
             return 1;
         }
+    }
+    // D-form: LHA (42), LFS (48), LFD (50), STFS (52), STFD (54)
+    if(opcd == 42 || opcd == 48 || opcd == 50 || opcd == 52 || opcd == 54) {
+        int16_t disp = (int16_t)(inst & 0xFFFF);
+        volatile uint8_t* addr = (void*)((ra?p->uc_mcontext.gp_regs[ra]:0) + disp);
+        if(is32bits) addr = (uint8_t*)(((uintptr_t)addr)&0xffffffff);
+        uint64_t* fpr = &((uint64_t*)p->uc_mcontext.fp_regs)[rt_rs];
+        union { uint64_t u; double d; } d64;
+        union { uint32_t u; float f; } f32;
+        uint64_t value = 0;
+        switch(opcd) {
+            case 42:    // LHA
+                for(int i=0; i<2; ++i)
+                    value |= ((uint64_t)addr[i]) << (i*8);
+                p->uc_mcontext.gp_regs[rt_rs] = (uint64_t)(int64_t)(int16_t)value;
+                break;
+            case 50:    // LFD
+                for(int i=0; i<8; ++i)
+                    value |= ((uint64_t)addr[i]) << (i*8);
+                *fpr = value;
+                break;
+            case 54:    // STFD
+                for(int i=0; i<8; ++i)
+                    addr[i] = ((*fpr)>>(i*8))&0xff;
+                break;
+            case 48:    // LFS: single in memory, double in the register
+                for(int i=0; i<4; ++i)
+                    value |= ((uint64_t)addr[i]) << (i*8);
+                f32.u = value;
+                d64.d = f32.f;
+                *fpr = d64.u;
+                break;
+            case 52:    // STFS
+                d64.u = *fpr;
+                f32.f = d64.d;
+                for(int i=0; i<4; ++i)
+                    addr[i] = (f32.u>>(i*8))&0xff;
+                break;
+        }
+        p->uc_mcontext.gp_regs[PT_NIP]+=4;
+        return 1;
+    }
+    // DS-form load: LWA (opcd=58, xo=2)
+    if(opcd == 58 && (inst & 0x3) == 2) {
+        int16_t ds = (int16_t)(inst & 0xFFFC);
+        volatile uint8_t* addr = (void*)((ra?p->uc_mcontext.gp_regs[ra]:0) + ds);
+        if(is32bits) addr = (uint8_t*)(((uintptr_t)addr)&0xffffffff);
+        uint64_t value = 0;
+        for(int i=0; i<4; ++i)
+            value |= ((uint64_t)addr[i]) << (i*8);
+        p->uc_mcontext.gp_regs[rt_rs] = (uint64_t)(int64_t)(int32_t)value;
+        p->uc_mcontext.gp_regs[PT_NIP]+=4;
+        return 1;
+    }
+    // DQ-form VSX: LXV (opcd=61, xo=1), STXV (opcd=61, xo=5), 16 bytes
+    if(opcd == 61 && ((inst & 0x7) == 1 || (inst & 0x7) == 5) && p->uc_mcontext.v_regs) {
+        int16_t dq = (int16_t)(inst & 0xFFF0);
+        int xt = rt_rs + (((inst >> 3) & 1) << 5);
+        volatile uint8_t* addr = (void*)((ra?p->uc_mcontext.gp_regs[ra]:0) + dq);
+        if(is32bits) addr = (uint8_t*)(((uintptr_t)addr)&0xffffffff);
+        // VSR0-31: bytes 0..7 of the memory image are doubleword 1, saved after the 34 VMX
+        // entries of v_regs; bytes 8..15 are doubleword 0, the FPR. VSR32-63 are the VMX
+        // registers, saved in memory image order.
+        uint8_t* lo = (uint8_t*)((uint64_t*)((char*)p->uc_mcontext.v_regs + 34*16) + xt);
+        uint8_t* hi = (uint8_t*)&((uint64_t*)p->uc_mcontext.fp_regs)[xt];
+        uint8_t* vr = (uint8_t*)&p->uc_mcontext.v_regs->vrregs[xt-32];
+        if((inst & 0x7) == 5) {
+            for(int i=0; i<16; ++i)
+                addr[i] = (xt<32) ? ((i<8)?lo[i]:hi[i-8]) : vr[i];
+        } else {
+            for(int i=0; i<16; ++i) {
+                uint8_t b = addr[i];
+                if(xt<32) { if(i<8) lo[i] = b; else hi[i-8] = b; } else vr[i] = b;
+            }
+        }
+        p->uc_mcontext.gp_regs[PT_NIP]+=4;
+        return 1;
     }
     printf_log(LOG_INFO, "Unsupported SIGBUS special cases with pc=%p, opcode=%x (%s)\n", pc, inst, ppc64le_print(inst, (uintptr_t)pc));
 #endif
