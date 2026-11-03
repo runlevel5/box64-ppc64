@@ -54,6 +54,18 @@ section .data
     t48_name: db "lock btr qword unaligned+1 imm60 CF", 0
     t49_name: db "lock bts dword negative bit offset mem", 0
     t50_name: db "lock bts dword negative bit offset CF", 0
+    t51_name: db "lock add dword unaligned+1 (in 8B block)", 0
+    t52_name: db "lock add dword unaligned+1 neighbours", 0
+    t53_name: db "lock sub dword unaligned+5 (crosses 8B)", 0
+    t54_name: db "lock sub dword unaligned+5 neighbours", 0
+    t55_name: db "lock or dword imm unaligned+2", 0
+    t56_name: db "lock and dword imm unaligned+6", 0
+    t57_name: db "lock xor dword imm unaligned+3", 0
+    t58_name: db "lock inc dword unaligned+7", 0
+    t59_name: db "lock xadd dword unaligned+1 old", 0
+    t60_name: db "lock xadd dword unaligned+1 mem", 0
+    t61_name: db "lock dec dword unaligned+5", 0
+    t62_name: db "lock neg dword unaligned+6", 0
 
 section .bss
     alignb 8
@@ -559,5 +571,61 @@ _start:
     CHECK_EQ_32 eax, 0x20000000
     TEST_CASE t50_name
     CHECK_FLAGS_EQ CF, 0
+
+    ; ==== Tests 51-62: unaligned LOCK read-modify-write dwords ====
+    ; offsets 1..3 stay inside an 8-byte block, 5..7 cross into the next one
+    lea rbx, [rel val16]
+    mov rax, 0x1111111111111111
+    mov [rbx], rax
+    mov rax, 0x2222222222222222
+    mov [rbx+8], rax
+    mov eax, 0x01010101
+    lock add dword [rbx+1], eax
+    TEST_CASE t51_name
+    mov eax, [rbx+1]
+    CHECK_EQ_32 eax, 0x12121212
+    TEST_CASE t52_name
+    mov rax, [rbx]
+    CHECK_EQ_64 rax, 0x1111111212121211
+    mov eax, 0x01010101
+    lock sub dword [rbx+5], eax
+    TEST_CASE t53_name
+    mov eax, [rbx+5]
+    CHECK_EQ_32 eax, 0x21101010
+    TEST_CASE t54_name
+    mov rax, [rbx+8]
+    CHECK_EQ_64 rax, 0x2222222222222221
+    lock or dword [rbx+2], 0x80808080
+    TEST_CASE t55_name
+    mov eax, [rbx+2]
+    CHECK_EQ_32 eax, 0x90929292
+    lock and dword [rbx+6], 0x0F0F0F0F
+    TEST_CASE t56_name
+    mov eax, [rbx+6]
+    CHECK_EQ_32 eax, 0x02010000
+    lock xor dword [rbx+3], 0xFFFFFFFF
+    TEST_CASE t57_name
+    mov eax, [rbx+3]
+    CHECK_EQ_32 eax, 0xFF6F6D6D
+    lock inc dword [rbx+7]
+    TEST_CASE t58_name
+    mov eax, [rbx+7]
+    CHECK_EQ_32 eax, 0x22020101
+    mov ecx, 0x10
+    lock xadd dword [rbx+1], ecx
+    mov r15d, ecx                  ; TEST_CASE's syscall clobbers rcx
+    TEST_CASE t59_name
+    CHECK_EQ_32 r15d, 0x6D6D9212
+    TEST_CASE t60_name
+    mov eax, [rbx+1]
+    CHECK_EQ_32 eax, 0x6D6D9222
+    lock dec dword [rbx+5]
+    TEST_CASE t61_name
+    mov eax, [rbx+5]
+    CHECK_EQ_32 eax, 0x0101FF6E
+    lock neg dword [rbx+6]
+    TEST_CASE t62_name
+    mov eax, [rbx+6]
+    CHECK_EQ_32 eax, 0xFDFEFE01
 
     END_TESTS

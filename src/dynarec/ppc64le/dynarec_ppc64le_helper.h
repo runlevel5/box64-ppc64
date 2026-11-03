@@ -2879,44 +2879,36 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         LWSYNC();                                \
     } while (0)
 
-// LOCK_32_IN_8BYTE: atomic 32-bit op on unaligned address within an 8-byte block
-// Uses LDARX/STDCXd on the containing 8-byte-aligned address
-// s1 = old 32-bit value (output), wback = original address, op computes new value in s4
-#define LOCK_32_IN_8BYTE(op, s1, wback, s3, s4, s5, s6)               \
-    do {                                                              \
-        ANDI(s3, wback, 0b100);   /* byte offset within 8B: 0 or 4 */ \
-        SLDI(s3, s3, 3);          /* bit offset: 0 or 32 */           \
-        RLDICR(s6, wback, 0, 60); /* align to 8 bytes: wback & ~7 */  \
-        LWSYNC();                                                     \
-        MARKLOCK;                                                     \
-        LDARX(s5, 0, s6);      /* load-linked 8 bytes */              \
-        SRD(s1, s5, s3);       /* shift old 32-bit value down */      \
-        RLDICL(s1, s1, 0, 32); /* zero upper 32 bits */               \
-        op;                    /* s4 = f(s1, operand) */              \
-        /* insert s4 back: clear 32-bit field, OR in new value */     \
-        LI(s1, -1);            /* temp all-ones */                    \
-        RLDICL(s1, s1, 0, 32); /* mask = 0x00000000FFFFFFFF */        \
-        SLD(s1, s1, s3);       /* shift mask to position */           \
-        ANDC(s5, s5, s1);      /* clear old field */                  \
-        RLDICL(s4, s4, 0, 32); /* zero upper bits of new value */     \
-        SLD(s4, s4, s3);       /* shift new value to position */      \
-        OR(s5, s5, s4);        /* insert new value */                 \
-        STDCXd(s5, 0, s6);     /* store-conditional */                \
-        BNE_MARKLOCK_CR0;                                             \
-        LWSYNC();                                                     \
-        /* restore s1 = old 32-bit value */                           \
-        SRD(s1, s5, s3);                                              \
-        RLDICL(s1, s1, 0, 32);                                        \
+// LOCK_32_IN_8BYTE: atomic 32-bit op on an unaligned address that stays inside an 8-byte block
+// (offset 1..3): LDARX/STDCXd on the containing 8-byte-aligned doubleword, the field is
+// replaced with an xor-delta so s5 (the loaded block) and s1 (the old value) survive.
+// s1 = old 32-bit value (output), wback = original address, op computes new value in s4 from s1
+#define LOCK_32_IN_8BYTE(op, s1, wback, s3, s4, s5, s6)                   \
+    do {                                                                  \
+        ANDI(s3, wback, 0b111);   /* byte offset within 8B: 1..3 */      \
+        SLDI(s3, s3, 3);          /* bit offset */                        \
+        RLDICR(s6, wback, 0, 60); /* align to 8 bytes: wback & ~7 */      \
+        LWSYNC();                                                         \
+        MARKLOCK;                                                         \
+        LDARX(s5, 0, s6);      /* load-linked 8 bytes */                  \
+        SRD(s1, s5, s3);       /* shift old 32-bit value down */          \
+        RLDICL(s1, s1, 0, 32); /* zero upper 32 bits */                   \
+        op;                    /* s4 = f(s1, operand) */                  \
+        XOR(s4, s4, s1);       /* delta old^new */                        \
+        RLDICL(s4, s4, 0, 32); /* keep the 32-bit field only */           \
+        SLD(s4, s4, s3);       /* shift delta to position */              \
+        XOR(s4, s5, s4);       /* new 8-byte block, s5 and s1 untouched */ \
+        STDCXd(s4, 0, s6);     /* store-conditional */                    \
+        BNE_MARKLOCK_CR0;                                                 \
+        LWSYNC();                                                         \
     } while (0)
 
-// LOCK_3264_CROSS_8BYTE: best-effort atomic for values crossing an 8-byte boundary
-// Uses LDARX/STDCXd as a lock on the lower aligned 8B, then non-atomic load/modify/store
+// LOCK_3264_CROSS_8BYTE: value crossing an 8-byte boundary: no single reservation covers it,
+// so this is a plain fenced load/modify/store (same best effort as the ARM64 backend's
+// unaligned fallback). s1 = old value (output), op computes the new value in s4.
 #define LOCK_3264_CROSS_8BYTE(op, s1, wback, s4, s5, s6) \
     do {                                                 \
-        RLDICR(s6, wback, 0, 60); /* align to 8 bytes */ \
         LWSYNC();                                        \
-        MARKLOCK;                                        \
-        LDARX(s5, 0, s6); /* reservation lock */         \
         if (rex.w) {                                     \
             LD(s1, 0, wback);                            \
         } else {                                         \
@@ -2928,8 +2920,6 @@ uintptr_t dynarec64_DF(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
         } else {                                         \
             STW(s4, 0, wback);                           \
         }                                                \
-        STDCXd(s5, 0, s6); /* release reservation */     \
-        BNE_MARKLOCK_CR0;                                \
         LWSYNC();                                        \
     } while (0)
 

@@ -109,9 +109,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
-                        ANDI(x3, wback, 0b111);
-                        CMPWI(x3, 4);
-                        BGE_MARK2(x3, x3); // actually need BLT, but check if offset >= 5 crosses boundary
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         // Within 8-byte block
                         LOCK_32_IN_8BYTE(ADD(x4, x1, gd), x1, wback, x3, x4, x5, x6);
                         B_MARK3_nocond;
@@ -187,8 +186,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
-                        ANDI(x3, wback, 0b111);
-                        CMPWI(x3, 4);
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         LOCK_32_IN_8BYTE(OR(x4, x1, gd), x1, wback, x3, x4, x5, x6);
                         B_MARK3_nocond;
                     }
@@ -509,6 +508,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(ADD(x4, x1, gd), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -672,9 +673,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
-                        ANDI(x3, wback, 0b111);
-                        CMPWI(x3, 4);
-                        BGE_MARK2(x3, x3);
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         LOCK_32_IN_8BYTE(ADD(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                         B_MARK3_nocond;
                     }
@@ -734,9 +734,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
-                        ANDI(x3, wback, 0b111);
-                        CMPWI(x3, 4);
-                        BGE_MARK2(x3, x3);
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         LOCK_32_IN_8BYTE(SUB(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                         B_MARK3_nocond;
                     }
@@ -813,6 +812,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         LOCK_32_IN_8BYTE(AND(x4, x1, gd), x1, wback, x3, x4, x5, x6);
                         B_MARK3_nocond;
                     }
@@ -868,6 +869,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         LOCK_32_IN_8BYTE(SUB(x4, x1, gd), x1, wback, x3, x4, x5, x6);
                         B_MARK3_nocond;
                     }
@@ -923,6 +926,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         LOCK_32_IN_8BYTE(XOR(x4, x1, gd), x1, wback, x3, x4, x5, x6);
                         B_MARK3_nocond;
                     }
@@ -1033,9 +1038,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(ADD(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1097,9 +1101,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(OR(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1164,9 +1167,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(ADD(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1231,9 +1233,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(SUB(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1295,9 +1296,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(AND(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1360,9 +1360,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(SUB(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1424,9 +1423,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(XOR(x4, x1, x7), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1484,13 +1482,10 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                     if (!ALIGNED_ATOMICxw) {
                         B_MARK3_nocond;
                         MARK;
-                        ANDI(x3, wback, 0b111);
-                        CMPWI(x3, 4);
-                        BGE_MARK2(x3, x3);
+                        ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                        BNEZ_MARK2(x3);
                         // 32-bit unaligned within 8-byte block: use LDARX on containing 8B
-                        MR(x4, gd); // x4 = new value to store
-                        LOCK_32_IN_8BYTE(MR(x4, x4), x1, wback, x3, x4, x5, x6);
-                        // x1 = old value is set by macro (via SRD+RLDICL at the end)
+                        LOCK_32_IN_8BYTE(MR(x4, gd), x1, wback, x3, x4, x5, x6); // x1 = old value
                         B_MARK3_nocond;
                     }
                 }
@@ -1562,9 +1557,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(NOT(x4, x1), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1615,9 +1609,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(NEG(x4, x1), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1721,9 +1714,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(ADDI(x4, x1, 1), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
@@ -1777,9 +1769,8 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                             if (!ALIGNED_ATOMICxw) {
                                 B_MARK3_nocond;
                                 MARK;
-                                ANDI(x3, wback, 0b111);
-                                CMPWI(x3, 4);
-                                BGE_MARK2(x3, x3);
+                                ANDI(x3, wback, 0b100); // offset >= 5: the dword crosses the 8-byte block
+                                BNEZ_MARK2(x3);
                                 LOCK_32_IN_8BYTE(ADDI(x4, x1, -1), x1, wback, x3, x4, x5, x6);
                                 B_MARK3_nocond;
                             }
