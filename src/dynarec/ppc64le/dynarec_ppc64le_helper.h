@@ -1259,6 +1259,25 @@
     }
 #endif
 #ifndef X87_CHECK_PRECISION
+// x87 NaN handling for the arithmetic opcodes (used when BOX64_DYNAREC_FASTNAN=0): a NaN produced
+// by the operation itself (no NaN operand: inf-inf, 0*inf, 0/0, sqrt(-x)) is the negative "real
+// indefinite" on x87 but the positive default QNaN on POWER; NaN operands propagate (quieted, payload
+// kept) on both. Only CR5/CR6/CR7 are used, no scratch register, and the FP op between START and
+// END does not touch CR. Same approach as the ARM64 backend (upstream 0c2de1f7f).
+#define X87_ARITH_NAN_START(va, vb)                            \
+    do {                                                       \
+        FCMPU(CR6, va, va);                                    \
+        FCMPU(CR7, vb, vb);                                    \
+        CROR(BI(CR5, CR_LT), BI(CR6, CR_SO), BI(CR7, CR_SO)); /* CR5[LT] = a or b is NaN */ \
+    } while (0)
+#define X87_ARITH_NAN_END(vres)                                \
+    do {                                                       \
+        FCMPU(CR6, vres, vres);                                \
+        CRANDC(BI(CR5, CR_GT), BI(CR6, CR_SO), BI(CR5, CR_LT)); /* NaN result from non-NaN operands */ \
+        BC(BO_FALSE, BI(CR5, CR_GT), 8);                       \
+        FNEG(vres, vres);                                      \
+    } while (0)
+
 #define X87_CHECK_PRECISION(A)               \
     if (!ST_IS_F(0) && dyn->need_x87check) { \
         CMPDI(x87pc, 0);                     \
