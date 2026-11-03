@@ -870,10 +870,19 @@ uintptr_t RunF0(x64emu_t *emu, rex_t rex, uintptr_t addr)
                     GETGD;
 #if defined(DYNAREC) && !defined(TEST_INTERPRETER)
                     if(rex.w) {
-                        do {
-                            tmp64u = native_lock_read_dd(ED);
-                            tmp64u2 = add64(emu, tmp64u, GD->q[0]);
-                        } while(native_lock_write_dd(ED, tmp64u2));
+                        if(((uintptr_t)ED)&7) {
+                            do {
+                                tmp64u = ED->q[0] & ~0xffLL;
+                                tmp64u |= native_lock_read_b(ED);
+                                tmp64u2 = add64(emu, tmp64u, GD->q[0]);
+                            } while(native_lock_write_b(ED, tmp64u2&0xff));
+                            ED->q[0] = tmp64u2;
+                        } else {
+                            do {
+                                tmp64u = native_lock_read_dd(ED);
+                                tmp64u2 = add64(emu, tmp64u, GD->q[0]);
+                            } while(native_lock_write_dd(ED, tmp64u2));
+                        }
                         GD->q[0] = tmp64u;
                     } else {
                         if(((uintptr_t)ED)&3) {
