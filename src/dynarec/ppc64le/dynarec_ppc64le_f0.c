@@ -219,40 +219,26 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         SETFLAGS(X_CF, SF_SUBSET, NAT_FLAGS_NOFUSION);
                         GETGD;
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
-                        // Compute bit position and byte offset
-                        if (rex.w) {
-                            // 64-bit: bit offset = gd (can be > 63, so address adjusted)
-                            SRADI(x3, gd, 6);   // qword offset
-                            SLDI(x3, x3, 3);    // byte offset
-                            ADD(x6, wback, x3); // adjusted address
-                            ANDI(x5, gd, 63);   // bit within qword
-                            LI(x3, 1);
-                            SLD(x3, x3, x5); // mask
-                            LWSYNC();
-                            MARKLOCK;
-                            LDARX(x1, 0, x6);
-                            OR(x4, x1, x3);
-                            STDCXd(x4, 0, x6);
-                            BNE_MARKLOCK_CR0;
-                            LWSYNC();
-                        } else {
-                            SRAWI(x3, gd, 5);   // dword offset
-                            SLDI(x3, x3, 2);    // byte offset
-                            ADD(x6, wback, x3); // adjusted address
-                            ANDI(x5, gd, 31);   // bit within dword
-                            LI(x3, 1);
-                            SLW(x3, x3, x5); // mask
-                            LWSYNC();
-                            MARKLOCK;
-                            LWARX(x1, 0, x6);
-                            OR(x4, x1, x3);
-                            STWCXd(x4, 0, x6);
-                            BNE_MARKLOCK_CR0;
-                            LWSYNC();
-                        }
+                        // The bit lives in a single byte: do the atomic on that byte (like the 16-bit
+                        // forms). lwarx/ldarx on the guest address would trap when it is not aligned.
+                        if (rex.w)
+                            SRADI(x3, gd, 3);   // byte offset (signed)
+                        else
+                            SRAWI(x3, gd, 3);
+                        ADD(x6, wback, x3);     // byte address
+                        ANDI(x5, gd, 7);        // bit within byte
+                        LI(x3, 1);
+                        SLW(x3, x3, x5);        // mask
+                        LWSYNC();
+                        MARKLOCK;
+                        LBARX(x1, 0, x6);
+                        OR(x4, x1, x3);
+                        STBCXd(x4, 0, x6);
+                        BNE_MARKLOCK_CR0;
+                        LWSYNC();
                         // Set CF from old value
                         IFXORNAT (X_CF) {
-                            SRD(x1, x1, x5);
+                            SRW(x1, x1, x5);
                             ANDI(x1, x1, 1);
                             IFX (X_CF) {
                                 BF_INSERT(xFlags, x1, F_CF, F_CF);
@@ -355,39 +341,24 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                         SETFLAGS(X_CF, SF_SUBSET, NAT_FLAGS_NOFUSION);
                         GETGD;
                         addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
-                        if (rex.w) {
-                            SRADI(x3, gd, 6);
-                            SLDI(x3, x3, 3);
-                            ADD(x6, wback, x3);
-                            ANDI(x5, gd, 63);
-                            LI(x3, 1);
-                            SLD(x3, x3, x5); // mask
-                            NOT(x3, x3);     // inverted mask
-                            LWSYNC();
-                            MARKLOCK;
-                            LDARX(x1, 0, x6);
-                            AND(x4, x1, x3);
-                            STDCXd(x4, 0, x6);
-                            BNE_MARKLOCK_CR0;
-                            LWSYNC();
-                        } else {
-                            SRAWI(x3, gd, 5);
-                            SLDI(x3, x3, 2);
-                            ADD(x6, wback, x3);
-                            ANDI(x5, gd, 31);
-                            LI(x3, 1);
-                            SLW(x3, x3, x5);
-                            NOT(x3, x3);
-                            LWSYNC();
-                            MARKLOCK;
-                            LWARX(x1, 0, x6);
-                            AND(x4, x1, x3);
-                            STWCXd(x4, 0, x6);
-                            BNE_MARKLOCK_CR0;
-                            LWSYNC();
-                        }
+                        if (rex.w)
+                            SRADI(x3, gd, 3);   // byte offset (signed)
+                        else
+                            SRAWI(x3, gd, 3);
+                        ADD(x6, wback, x3);     // byte address
+                        ANDI(x5, gd, 7);        // bit within byte
+                        LI(x3, 1);
+                        SLW(x3, x3, x5);
+                        NOT(x3, x3);            // inverted mask
+                        LWSYNC();
+                        MARKLOCK;
+                        LBARX(x1, 0, x6);
+                        AND(x4, x1, x3);
+                        STBCXd(x4, 0, x6);
+                        BNE_MARKLOCK_CR0;
+                        LWSYNC();
                         IFXORNAT (X_CF) {
-                            SRD(x1, x1, x5);
+                            SRW(x1, x1, x5);
                             ANDI(x1, x1, 1);
                             IFX (X_CF) {
                                 BF_INSERT(xFlags, x1, F_CF, F_CF);
@@ -417,31 +388,19 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                                 u8 = F8;
                                 u8 = rex.w ? (u8 & 63) : (u8 & 31);
+                                // atomic on the byte holding the bit (see LOCK BTS Ed, Gd)
+                                ADDI(x6, wback, u8 >> 3); // byte address
                                 LI(x3, 1);
-                                if (rex.w) {
-                                    SLDI(x3, x3, u8);
-                                    LWSYNC();
-                                    MARKLOCK;
-                                    LDARX(x1, 0, wback);
-                                    OR(x4, x1, x3);
-                                    STDCXd(x4, 0, wback);
-                                    BNE_MARKLOCK_CR0;
-                                    LWSYNC();
-                                } else {
-                                    SLWI(x3, x3, u8);
-                                    LWSYNC();
-                                    MARKLOCK;
-                                    LWARX(x1, 0, wback);
-                                    OR(x4, x1, x3);
-                                    STWCXd(x4, 0, wback);
-                                    BNE_MARKLOCK_CR0;
-                                    LWSYNC();
-                                }
+                                SLWI(x3, x3, u8 & 7);     // mask
+                                LWSYNC();
+                                MARKLOCK;
+                                LBARX(x1, 0, x6);
+                                OR(x4, x1, x3);
+                                STBCXd(x4, 0, x6);
+                                BNE_MARKLOCK_CR0;
+                                LWSYNC();
                                 IFXORNAT (X_CF) {
-                                    if (rex.w)
-                                        SRDI(x1, x1, u8);
-                                    else
-                                        SRWI(x1, x1, u8);
+                                    SRWI(x1, x1, u8 & 7);
                                     ANDI(x1, x1, 1);
                                     IFX (X_CF) {
                                         BF_INSERT(xFlags, x1, F_CF, F_CF);
@@ -461,33 +420,19 @@ uintptr_t dynarec64_F0(dynarec_ppc64le_t* dyn, uintptr_t addr, uintptr_t ip, int
                                 addr = geted(dyn, addr, ninst, nextop, &wback, x2, x1, &fixedaddress, rex, LOCK_LOCK, NO_DISP, 0);
                                 u8 = F8;
                                 u8 = rex.w ? (u8 & 63) : (u8 & 31);
+                                ADDI(x6, wback, u8 >> 3); // byte address
                                 LI(x3, 1);
-                                if (rex.w) {
-                                    SLDI(x3, x3, u8);
-                                    NOT(x3, x3);
-                                    LWSYNC();
-                                    MARKLOCK;
-                                    LDARX(x1, 0, wback);
-                                    AND(x4, x1, x3);
-                                    STDCXd(x4, 0, wback);
-                                    BNE_MARKLOCK_CR0;
-                                    LWSYNC();
-                                } else {
-                                    SLWI(x3, x3, u8);
-                                    NOT(x3, x3);
-                                    LWSYNC();
-                                    MARKLOCK;
-                                    LWARX(x1, 0, wback);
-                                    AND(x4, x1, x3);
-                                    STWCXd(x4, 0, wback);
-                                    BNE_MARKLOCK_CR0;
-                                    LWSYNC();
-                                }
+                                SLWI(x3, x3, u8 & 7);
+                                NOT(x3, x3);              // inverted mask
+                                LWSYNC();
+                                MARKLOCK;
+                                LBARX(x1, 0, x6);
+                                AND(x4, x1, x3);
+                                STBCXd(x4, 0, x6);
+                                BNE_MARKLOCK_CR0;
+                                LWSYNC();
                                 IFXORNAT (X_CF) {
-                                    if (rex.w)
-                                        SRDI(x1, x1, u8);
-                                    else
-                                        SRWI(x1, x1, u8);
+                                    SRWI(x1, x1, u8 & 7);
                                     ANDI(x1, x1, 1);
                                     IFX (X_CF) {
                                         BF_INSERT(xFlags, x1, F_CF, F_CF);
