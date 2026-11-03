@@ -602,7 +602,7 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
             GETGX();
             d0 = fpu_get_scratch(dyn);
             u8 = sse_setround(dyn, ninst, x6, x4);
-            if (!BOX64ENV(dynarec_fastnan)) LUI(x7, 0x7fc00);
+            if (!BOX64ENV(dynarec_fastnan)) MOV32w(x7, 0x7FC00000);
             for (int i = 0; i < 2; ++i) {
                 FLD(d0, wback, fixedaddress + i * 8);
                 if (!BOX64ENV(dynarec_fastnan)) {
@@ -663,7 +663,7 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
                 FCVTLS(x3, d0, RD_DYN);
                 SEXT_W(x5, x3);
                 BEQ(x5, x3, 8);
-                LUI(x3, 0x80000); // INT32_MIN
+                MOV64x(x3, (int64_t)INT32_MIN); // INT32_MIN
                 SW(x3, gback, gdoffset + 4 * i);
             }
             if (vex.l) {
@@ -673,7 +673,7 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
                     FCVTLS(x3, d0, RD_DYN);
                     SEXT_W(x5, x3);
                     BEQ(x5, x3, 8);
-                    LUI(x3, 0x80000); // INT32_MIN
+                    MOV64x(x3, (int64_t)INT32_MIN); // INT32_MIN
                     SW(x3, gback, gyoffset + 4 * i);
                 }
             } else
@@ -751,28 +751,20 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
             v0 = fpu_get_scratch(dyn);
             v1 = fpu_get_scratch(dyn);
             for (int i = 0; i < 2; ++i) {
-                FLD(v0, vback, vxoffset + 8 * i);
-                FLD(v1, wback, fixedaddress + 8 * i);
-                FEQD(x3, v0, v0);
-                FEQD(x4, v1, v1);
-                AND(x3, x3, x4);
-                BEQ(x3, xZR, 4 + 3 * 4);
-                FLTD(x3, v0, v1);
-                BEQ(x3, xZR, 4 + 4); // continue
+                FLD(v0, wback, fixedaddress + 8 * i);
+                FLD(v1, vback, vxoffset + 8 * i);
+                FLTD(x3, v1, v0);
+                BNEZ(x3, 8);
                 FMVD(v1, v0);
                 FSD(v1, gback, gdoffset + 8 * i);
             }
             if (vex.l) {
                 GETEY();
                 for (int i = 0; i < 2; ++i) {
-                    FLD(v0, vback, vyoffset + 8 * i);
-                    FLD(v1, wback, fixedaddress + 8 * i);
-                    FEQD(x3, v0, v0);
-                    FEQD(x4, v1, v1);
-                    AND(x3, x3, x4);
-                    BEQ(x3, xZR, 4 + 3 * 4);
-                    FLTD(x3, v0, v1);
-                    BEQ(x3, xZR, 4 + 4); // continue
+                    FLD(v0, wback, fixedaddress + 8 * i);
+                    FLD(v1, vback, vyoffset + 8 * i);
+                    FLTD(x3, v1, v0);
+                    BNEZ(x3, 8);
                     FMVD(v1, v0);
                     FSD(v1, gback, gyoffset + 8 * i);
                 }
@@ -850,28 +842,20 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
             v0 = fpu_get_scratch(dyn);
             v1 = fpu_get_scratch(dyn);
             for (int i = 0; i < 2; ++i) {
-                FLD(v0, vback, vxoffset + 8 * i);
-                FLD(v1, wback, fixedaddress + 8 * i);
-                FEQD(x3, v0, v0);
-                FEQD(x4, v1, v1);
-                AND(x3, x3, x4);
-                BEQ(x3, xZR, 4 + 3 * 4);
-                FLTD(x3, v1, v0);
-                BEQ(x3, xZR, 4 + 4); // continue
+                FLD(v0, wback, fixedaddress + 8 * i);
+                FLD(v1, vback, vxoffset + 8 * i);
+                FLTD(x3, v0, v1);
+                BNEZ(x3, 8);
                 FMVD(v1, v0);
                 FSD(v1, gback, gdoffset + 8 * i);
             }
             if (vex.l) {
                 GETEY();
                 for (int i = 0; i < 2; ++i) {
-                    FLD(v0, vback, vyoffset + 8 * i);
-                    FLD(v1, wback, fixedaddress + 8 * i);
-                    FEQD(x3, v0, v0);
-                    FEQD(x4, v1, v1);
-                    AND(x3, x3, x4);
-                    BEQ(x3, xZR, 4 + 3 * 4);
-                    FLTD(x3, v1, v0);
-                    BEQ(x3, xZR, 4 + 4); // continue
+                    FLD(v0, wback, fixedaddress + 8 * i);
+                    FLD(v1, vback, vyoffset + 8 * i);
+                    FLTD(x3, v0, v1);
+                    BNEZ(x3, 8);
                     FMVD(v1, v0);
                     FSD(v1, gback, gyoffset + 8 * i);
                 }
@@ -1200,9 +1184,8 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
             GETGY();
             GETVX();
             GETVY();
-            LUI(x6, 0xFFFF8); // -32768
-            LUI(x7, 0x8);     // 32768
-            ADDIW(x7, x7, -1);
+            MOV64x(x6, -32768);
+            MOV32w(x7, 0x7FFF);
             if (gd == ed) {
                 ADDI(x5, xEmu, offsetof(x64emu_t, scratch));
                 LD(x3, wback, fixedaddress + 0);
@@ -2553,7 +2536,7 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
             nextop = F8;
             GETEX(x2, 0, vex.l ? 28 : 12);
             GETGD;
-            MOV64x(x5, 0x8080808080808080);
+            MOV64xs(x5, 0x8080808080808080, x3);
             MOV64x(x6, 0x0002040810204081);
             LD(x1, wback, fixedaddress + 0);
             AND(x1, x1, x5);
@@ -3077,9 +3060,8 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
             GETGY();
             GETVX();
             GETVY();
-            LUI(x6, 0xFFFF8); // -32768
-            LUI(x7, 0x8);     // 32768
-            ADDIW(x7, x7, -1);
+            MOV64x(x6, -32768);
+            MOV32w(x7, 0x7FFF);
             for (int i = 0; i < 8; ++i) {
                 LH(x3, vback, vxoffset + i * 2);
                 LH(x4, wback, fixedaddress + i * 2);
@@ -3196,9 +3178,8 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
             GETGY();
             GETVX();
             GETVY();
-            LUI(x6, 0xFFFF8); // -32768
-            LUI(x7, 0x8);     // 32768
-            ADDIW(x7, x7, -1);
+            MOV64x(x6, -32768);
+            MOV32w(x7, 0x7FFF);
             for (int i = 0; i < 8; ++i) {
                 LH(x3, vback, vxoffset + i * 2);
                 LH(x4, wback, fixedaddress + i * 2);
@@ -3673,8 +3654,11 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
                 FLD(d0, wback, fixedaddress + 8 * i);
                 FCVTLD(x3, d0, RD_RTZ);
                 SEXT_W(x5, x3);
-                BEQ(x5, x3, 8);
-                LUI(x3, 0x80000);
+                BEQ(x5, x3, 20);
+                LWU(x5, xEmu, offsetof(x64emu_t, mxcsr));
+                ORI(x5, x5, 1);
+                SW(x5, xEmu, offsetof(x64emu_t, mxcsr));
+                MOV64x(x3, (int64_t)INT32_MIN);
                 SW(x3, gback, gdoffset + 4 * i);
             }
             if (vex.l) {
@@ -3683,8 +3667,11 @@ uintptr_t dynarec64_AVX_66_0F(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip,
                     FLD(d0, wback, fixedaddress + 8 * i);
                     FCVTLD(x3, d0, RD_RTZ);
                     SEXT_W(x5, x3);
-                    BEQ(x5, x3, 8);
-                    LUI(x3, 0x80000);
+                    BEQ(x5, x3, 20);
+                    LWU(x5, xEmu, offsetof(x64emu_t, mxcsr));
+                    ORI(x5, x5, 1);
+                    SW(x5, xEmu, offsetof(x64emu_t, mxcsr));
+                    MOV64x(x3, (int64_t)INT32_MIN);
                     SW(x3, gback, gdoffset + 8 + 4 * i);
                 }
             } else {

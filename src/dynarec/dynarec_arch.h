@@ -8,6 +8,8 @@
 #define dynarec_native_t            dynarec_arm_t
 #define extcache_native_t           neoncache_t
 
+#define HAVE_IN_USED
+
 #define ADDITIONNAL_DEFINITION()  \
     int fpuCacheNeedsTransform(dynarec_native_t* dyn, int ninst);
 
@@ -49,11 +51,11 @@ extern void arm64_next_invalid();
 #define PRINT_OPCODE(C, A)  arm64_print(C, A)
 #elif defined(LA64)
 
-#define HAVE_LEAFCALL
-
 #define instruction_native_t        instruction_la64_t
 #define dynarec_native_t            dynarec_la64_t
 #define extcache_native_t           lsxcache_t
+
+#define HAVE_IN_USED
 
 #define ADDITIONNAL_DEFINITION() \
     int fpuCacheNeedsTransform(dynarec_native_t* dyn, int ninst);
@@ -98,6 +100,8 @@ extern void la64_next_invalid();
 #define dynarec_native_t            dynarec_rv64_t
 #define extcache_native_t           extcache_t
 
+#define HAVE_IN_USED
+
 #define ADDITIONNAL_DEFINITION()                                  \
     int fpuCacheNeedsTransform(dynarec_native_t* dyn, int ninst); \
     int sewNeedsTransform(dynarec_rv64_t* dyn, int ninst);
@@ -116,7 +120,7 @@ extern void la64_next_invalid();
 #define RAZ_SPECIFIC(A, N)
 #define UPDATE_SPECIFICS(A)
 #define PREUPDATE_SPECIFICS(A) updateNativeFlags(A)
-#define POSTUPDATE_SPECIFICS(A)
+#define POSTUPDATE_SPECIFICS(A) updatePreloads(A)
 
 #define ARCH_SIZE(A)    get_size_arch(A)
 #define ARCH_FILL(A, B, C) populate_arch(A, B, C)

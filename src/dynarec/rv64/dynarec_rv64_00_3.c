@@ -402,8 +402,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
 
                 if (eb2) {
                     // load a mask to x3 (ffffffffffff00ff)
-                    LUI(x3, 0xffff0);
-                    ORI(x3, x3, 0xff);
+                    MOV64x(x3, 0xFFFFFFFFFFFF00FF);
                     // apply mask
                     AND(eb1, eb1, x3);
                     if (u8) {
@@ -1324,11 +1323,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                     break;
                 case 1:
                     // this is call to next step, so just push the return address to the stack
-                    if (dyn->need_reloc) {
-                        TABLE64(x2, addr);
-                    } else {
-                        MOV64x(x2, addr);
-                    }
+                    GETRETADDR(addr, x2, x3);
                     PUSH1z(x2);
                     break;
                 default:
@@ -1338,11 +1333,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                         SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION); // Hack to set flags to "dont'care" state
                     }
                     // regular call
-                    if (dyn->need_reloc) {
-                        TABLE64(x2, addr);
-                    } else {
-                        MOV64x(x2, addr);
-                    }
+                    GETRETADDR(addr, x2, x3);
                     BARRIER(BARRIER_FLOAT);
                     PUSH1z(x2);
                     int can_continue = (addr < (dyn->start + dyn->isize));
@@ -1391,6 +1382,8 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                             MOV64x(x4, j64);
                         }
                         LD(x4, x4, 0);
+                        if (BOX64DRENV(dynarec_callret) >= 3)
+                            doLeaveBlock(dyn, ninst, x5, x6, x7);
                         BR(x4);
                     }
                     CLEARIP();
@@ -1415,6 +1408,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
             if (dyn->insts[ninst].x64.jmp_insts == -1) {
                 // out of the block
                 BARRIER(BARRIER_FLOAT);
+                fpu_purgecache(dyn, ninst, 0, x1, x2, x3);
                 jump_to_next(dyn, (uintptr_t)getAlternate((void*)j64), 0, ninst, rex.is32bits);
             } else {
                 // inside the block
@@ -1457,6 +1451,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
             if (box64_unittest_mode) { // HLT in unittest mode is an exit
                 READFLAGS(X_ALL);
                 BARRIER(BARRIER_FLOAT);
+                fpu_purgecache(dyn, ninst, 0, x1, x2, x3);
                 MOV32w(x1, 1);
                 SW(x1, xEmu, offsetof(x64emu_t, quit));
             } else {
@@ -1530,7 +1525,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                             OR(xFlags, xFlags, x3);
                         }
                     }
-                    LUI(x2, 0xffff0);
+                    MOV64x(x2, 0xFFFFFFFFFFFF0000);
                     AND(xRAX, xRAX, x2);
                     ZEXTH(x1, x1);
                     OR(xRAX, xRAX, x1);
@@ -1559,7 +1554,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                             OR(xFlags, xFlags, x3);
                         }
                     }
-                    LUI(x2, 0xffff0);
+                    MOV64x(x2, 0xFFFFFFFFFFFF0000);
                     AND(xRAX, xRAX, x2);
                     ZEXTH(x1, x1);
                     OR(xRAX, xRAX, x1);
@@ -1573,6 +1568,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                     INST_NAME("DIV Eb");
                     MESSAGE(LOG_DUMP, "Need Optimization\n");
                     SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
+                    CHECK_DFNONE(1);
                     GETEB(x1, 0);
                     ZEXTH(x2, xRAX);
                     if (BOX64ENV(dynarec_div0)) {
@@ -1587,7 +1583,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                     }
                     DIVUW(x3, x2, ed);
                     REMUW(x4, x2, ed);
-                    LUI(x5, 0xffff0);
+                    MOV64x(x5, 0xFFFFFFFFFFFF0000);
                     AND(xRAX, xRAX, x5);
                     ANDI(x3, x3, 0xff);
                     OR(xRAX, xRAX, x3);
@@ -1735,6 +1731,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                     INST_NAME("DIV Ed");
                     SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
                     SET_DFNONE();
+                    CHECK_DFNONE(1);
                     MARKREGd(xRAX);
                     MARKREGd(xRDX);
                     MARKREGs(xRAX);
@@ -1826,6 +1823,7 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                         SETFLAGS(X_ALL, SF_SET_NODF, NAT_FLAGS_NOFUSION);
                         SET_DFNONE();
                     }
+                    CHECK_DFNONE(1);
                     MARKREGd(xRAX);
                     MARKREGd(xRDX);
                     MARKREGs(xRAX);
@@ -2012,6 +2010,8 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                         if(dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);
                         TABLE64_(x4, j64);
                         LD(x4, x4, 0);
+                        if (BOX64DRENV(dynarec_callret) >= 3)
+                            doLeaveBlock(dyn, ninst, x5, x6, x7);
                         BR(x4);
                     }
                     CLEARIP();
@@ -2082,6 +2082,8 @@ uintptr_t dynarec64_00_3(dynarec_rv64_t* dyn, uintptr_t addr, uintptr_t ip, int 
                             if(dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);
                             TABLE64_(x4, j64);
                             LD(x4, x4, 0);
+                            if (BOX64DRENV(dynarec_callret) >= 3)
+                                doLeaveBlock(dyn, ninst, x5, x6, x7);
                             BR(x4);
                         }
                         CLEARIP();

@@ -1,289 +1,277 @@
-// build with  gcc -O0 -g -msse2 -msse3 -mavx -o test37 test37.c -lm -march=native
-// Test NaN sign bit handling in SSE/AVX floating-point operations.
-// On x86, newly generated NaNs (e.g. sqrt(-1), 0*inf, inf-inf, 0/0, inf/inf)
-// must have the sign bit set (negative NaN).
-// This catches a dynarec bug where the NaN fixup produces +nan instead of -nan.
-#include <inttypes.h>
-#include <string.h>
-#include <stdio.h>
+// SPDX-License-Identifier: MIT
 #include <stdint.h>
-#include <math.h>
-#include <xmmintrin.h>
-#include <emmintrin.h>
-#include <pmmintrin.h>
-#include <immintrin.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
 
-typedef union {
-    __m128  mf;
-    __m128d md;
-    __m128i mi;
-    float   f32[4];
-    double  d64[2];
-    uint32_t u32[4];
-    uint64_t u64[2];
-} v128;
+#define BLOCK_VALUES 2048
+#define N16          0x10000u
+#define N24          0x1000000u
+#define STEP24       31u
+#define NRAND64      50000u
+#define NRAND32      12500u
+#define NPOW         (64u * 9u)
 
-static void print_ps(v128 v) {
-    for (int i = 0; i < 4; ++i) {
-        if (isnan(v.f32[i]))
-            printf("%cnan ", (v.u32[i] & 0x80000000) ? '-' : '+');
-        else
-            printf("%g ", v.f32[i]);
-    }
-}
+enum {
+    F_MOV64,
+    F_MOV32,
+    F_MOVSXD,
+    F_STORE32,
+    F_COUNT
+};
 
-static void print_pd(v128 v) {
-    for (int i = 0; i < 2; ++i) {
-        if (isnan(v.d64[i]))
-            printf("%cnan ", (v.u64[i] & 0x8000000000000000ULL) ? '-' : '+');
-        else
-            printf("%g ", v.d64[i]);
-    }
-}
+static uint8_t* pool;
+static size_t pool_used;
+static size_t pool_size;
+static uint64_t checked[F_COUNT];
+static uint64_t failures;
 
-static void print_ss(v128 v) {
-    if (isnan(v.f32[0]))
-        printf("%cnan", (v.u32[0] & 0x80000000) ? '-' : '+');
-    else
-        printf("%g", v.f32[0]);
-}
-
-static void print_sd(v128 v) {
-    if (isnan(v.d64[0]))
-        printf("%cnan", (v.u64[0] & 0x8000000000000000ULL) ? '-' : '+');
-    else
-        printf("%g", v.d64[0]);
-}
-
-int main(int argc, const char** argv)
+static void* alloc_code(size_t bytes)
 {
-    v128 a, b, r;
+    void* p;
+    if (pool_used + bytes > pool_size) {
+        fprintf(stderr, "code pool exhausted\n");
+        exit(1);
+    }
+    p = pool + pool_used;
+    pool_used += bytes;
+    return p;
+}
 
-    // ========== SQRTPD ==========
-    printf("=== SQRTPD ===\n");
-    // sqrt(-1.0) => -nan, sqrt(4.0) => 2.0
-    a.md = _mm_set_pd(4.0, -1.0);
-    r.md = _mm_sqrt_pd(a.md);
-    printf("sqrtpd("); print_pd(a); printf(") = "); print_pd(r); printf("\n");
+static size_t emit_mov64(uint8_t* p, uint64_t v, int32_t disp)
+{
+    p[0] = 0x48;
+    p[1] = 0xB8;
+    memcpy(p + 2, &v, 8);
+    p[10] = 0x48;
+    p[11] = 0x89;
+    p[12] = 0x87;
+    memcpy(p + 13, &disp, 4);
+    return 17;
+}
 
-    // sqrt(-inf) => -nan, sqrt(0.0) => 0.0
-    a.md = _mm_set_pd(0.0, -INFINITY);
-    r.md = _mm_sqrt_pd(a.md);
-    printf("sqrtpd("); print_pd(a); printf(") = "); print_pd(r); printf("\n");
+static size_t emit_mov32(uint8_t* p, uint32_t v, int32_t disp)
+{
+    p[0] = 0xB8;
+    memcpy(p + 1, &v, 4);
+    p[5] = 0x48;
+    p[6] = 0x89;
+    p[7] = 0x87;
+    memcpy(p + 8, &disp, 4);
+    return 12;
+}
 
-    // sqrt(nan) => -nan (input nan passthrough with sign forced negative)
-    a.md = _mm_set_pd(9.0, NAN);
-    r.md = _mm_sqrt_pd(a.md);
-    printf("sqrtpd("); print_pd(a); printf(") = "); print_pd(r); printf("\n");
+static size_t emit_movsxd(uint8_t* p, int32_t v, int32_t disp)
+{
+    p[0] = 0x48;
+    p[1] = 0xC7;
+    p[2] = 0xC0;
+    memcpy(p + 3, &v, 4);
+    p[7] = 0x48;
+    p[8] = 0x89;
+    p[9] = 0x87;
+    memcpy(p + 10, &disp, 4);
+    return 14;
+}
 
-    // ========== SQRTPS ==========
-    printf("=== SQRTPS ===\n");
-    // sqrt(-1, 4, -9, 16) => -nan, 2, -nan, 4
-    a.mf = _mm_set_ps(16.0f, -9.0f, 4.0f, -1.0f);
-    r.mf = _mm_sqrt_ps(a.mf);
-    printf("sqrtps("); print_ps(a); printf(") = "); print_ps(r); printf("\n");
+static size_t emit_store32(uint8_t* p, int32_t v, int32_t disp)
+{
+    p[0] = 0x48;
+    p[1] = 0xC7;
+    p[2] = 0x87;
+    memcpy(p + 3, &disp, 4);
+    memcpy(p + 7, &v, 4);
+    return 11;
+}
 
-    // ========== SQRTSD ==========
-    printf("=== SQRTSD ===\n");
-    a.md = _mm_set_pd(99.0, 25.0);
-    b.md = _mm_set_pd(77.0, -4.0);
-    r.md = _mm_sqrt_sd(a.md, b.md);
-    // sqrtsd: r[0] = sqrt(b[0]), r[1] = a[1]
-    printf("sqrtsd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+static size_t emit_value(int form, uint8_t* p, uint64_t v, int32_t disp)
+{
+    switch (form) {
+        case F_MOV64:
+            return emit_mov64(p, v, disp);
+        case F_MOV32:
+            return emit_mov32(p, (uint32_t)v, disp);
+        case F_MOVSXD:
+            return emit_movsxd(p, (int32_t)v, disp);
+        default:
+            return emit_store32(p, (int32_t)v, disp);
+    }
+}
 
-    // ========== SQRTSS ==========
-    printf("=== SQRTSS ===\n");
-    a.mf = _mm_set_ps(1.0f, 2.0f, 3.0f, 9.0f);
-    b.mf = _mm_set_ps(5.0f, 6.0f, 7.0f, -16.0f);
-    r.mf = _mm_sqrt_ss(b.mf);
-    // sqrtss: r[0] = sqrt(b[0]), r[1..3] = b[1..3]
-    printf("sqrtss("); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+static uint64_t expected(int form, uint64_t v)
+{
+    switch (form) {
+        case F_MOV64:
+            return v;
+        case F_MOV32:
+            return (uint32_t)v;
+        default:
+            return (uint64_t)(int64_t)(int32_t)v;
+    }
+}
 
-    // ========== MULPD ==========
-    printf("=== MULPD ===\n");
-    // 0 * inf => -nan
-    a.md = _mm_set_pd(2.0, 0.0);
-    b.md = _mm_set_pd(3.0, INFINITY);
-    r.md = _mm_mul_pd(a.md, b.md);
-    printf("mulpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+typedef void (*block_fn)(uint64_t*);
 
-    // inf * 0 => -nan
-    a.md = _mm_set_pd(-1.0, INFINITY);
-    b.md = _mm_set_pd(5.0, 0.0);
-    r.md = _mm_mul_pd(a.md, b.md);
-    printf("mulpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+static void run_values(int form, const uint64_t* values, size_t count)
+{
+    size_t nblocks = (count + BLOCK_VALUES - 1) / BLOCK_VALUES;
+    size_t i, b;
+    uint8_t* start;
+    uint8_t* p;
+    uint8_t** blocks;
 
-    // -inf * 0 => -nan (sign: negative * positive = negative, but it's indeterminate)
-    a.md = _mm_set_pd(1.0, -INFINITY);
-    b.md = _mm_set_pd(1.0, 0.0);
-    r.md = _mm_mul_pd(a.md, b.md);
-    printf("mulpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+    start = alloc_code(count * 17 + nblocks);
+    blocks = malloc(nblocks * sizeof(*blocks));
+    if (!blocks) exit(1);
 
-    // ========== MULPS ==========
-    printf("=== MULPS ===\n");
-    a.mf = _mm_set_ps(1.0f, 0.0f, INFINITY, 2.0f);
-    b.mf = _mm_set_ps(2.0f, INFINITY, 0.0f, 3.0f);
-    r.mf = _mm_mul_ps(a.mf, b.mf);
-    printf("mulps("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+    p = start;
+    for (b = 0; b < nblocks; ++b) {
+        size_t base = b * BLOCK_VALUES;
+        size_t n = count - base;
+        if (n > BLOCK_VALUES) n = BLOCK_VALUES;
+        blocks[b] = p;
+        for (i = 0; i < n; ++i)
+            p += emit_value(form, p, values[base + i], (int32_t)(i * 8));
+        *p++ = 0xC3;
+    }
+    __builtin___clear_cache((char*)start, (char*)p);
 
-    // ========== DIVPD ==========
-    printf("=== DIVPD ===\n");
-    // 0/0 => -nan, inf/inf => -nan
-    a.md = _mm_set_pd(INFINITY, 0.0);
-    b.md = _mm_set_pd(INFINITY, 0.0);
-    r.md = _mm_div_pd(a.md, b.md);
-    printf("divpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+    for (b = 0; b < nblocks; ++b) {
+        size_t base = b * BLOCK_VALUES;
+        size_t n = count - base;
+        uint64_t out[BLOCK_VALUES];
+        block_fn fn = (block_fn)blocks[b];
+        if (n > BLOCK_VALUES) n = BLOCK_VALUES;
+        fn(out);
+        for (i = 0; i < n; ++i) {
+            uint64_t want = expected(form, values[base + i]);
+            checked[form]++;
+            if (out[i] != want) {
+                if (failures < 20)
+                    printf("FAIL form=%d value=%016llx expected=%016llx got=%016llx\n", form,
+                        (unsigned long long)values[base + i], (unsigned long long)want,
+                        (unsigned long long)out[i]);
+                failures++;
+            }
+        }
+    }
 
-    // -inf/inf => -nan
-    a.md = _mm_set_pd(1.0, -INFINITY);
-    b.md = _mm_set_pd(2.0, INFINITY);
-    r.md = _mm_div_pd(a.md, b.md);
-    printf("divpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+    free(blocks);
+}
 
-    // ========== DIVPS ==========
-    printf("=== DIVPS ===\n");
-    a.mf = _mm_set_ps(1.0f, 0.0f, INFINITY, -INFINITY);
-    b.mf = _mm_set_ps(2.0f, 0.0f, INFINITY, -INFINITY);
-    r.mf = _mm_div_ps(a.mf, b.mf);
-    printf("divps("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+static uint64_t rng_state = 0x123456789abcdefULL;
 
-    // ========== ADDPD (inf + -inf => -nan) ==========
-    printf("=== ADDPD ===\n");
-    a.md = _mm_set_pd(1.0, INFINITY);
-    b.md = _mm_set_pd(2.0, -INFINITY);
-    r.md = _mm_add_pd(a.md, b.md);
-    printf("addpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+static uint64_t rng(void)
+{
+    rng_state ^= rng_state << 13;
+    rng_state ^= rng_state >> 7;
+    rng_state ^= rng_state << 17;
+    return rng_state;
+}
 
-    // ========== ADDPS ==========
-    printf("=== ADDPS ===\n");
-    a.mf = _mm_set_ps(1.0f, INFINITY, -INFINITY, 3.0f);
-    b.mf = _mm_set_ps(2.0f, -INFINITY, INFINITY, 4.0f);
-    r.mf = _mm_add_ps(a.mf, b.mf);
-    printf("addps("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+static const uint64_t special[] = {
+    0, 1, 2, 3, 0x7F, 0x80, 0xFF, 0x100, 0x7FFF, 0x8000, 0xFFFF, 0x10000,
+    0x7FFFFFFF, 0x80000000, 0xFFFFFFFF, 0x100000000,
+    0x7FFFFFFFFFFFFFFF, 0x8000000000000000, 0xFFFFFFFFFFFFFFFF,
+    0xFFFF0000FFFF0000, 0x0000FFFF0000FFFF, 0x00FF00FF00FF00FF, 0xFF00FF00FF00FF00,
+    0x5555555555555555, 0xAAAAAAAAAAAAAAAA, 0x3333333333333333, 0xCCCCCCCCCCCCCCCC,
+    0x0F0F0F0F0F0F0F0F, 0xF0F0F0F0F0F0F0F0, 0x0101010101010101, 0x8080808080808080,
+    0x123456789ABCDEF0, 0xFEDCBA9876543210, 0xDEADBEEFCAFEBABE,
+    0x00000000FFFFFFFF, 0xFFFFFFFF00000000, 0x0000000100000001, 0xFFFFFFFF00000001,
+    0x7FFFFFFFFFFFFFFE, 0x8000000000000001, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFEFFFFFFFF
+};
 
-    // ========== SUBPD (inf - inf => -nan) ==========
-    printf("=== SUBPD ===\n");
-    a.md = _mm_set_pd(1.0, INFINITY);
-    b.md = _mm_set_pd(2.0, INFINITY);
-    r.md = _mm_sub_pd(a.md, b.md);
-    printf("subpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+static void print_group(int form)
+{
+    static const char* name[F_COUNT] = {
+        "mov r64, imm64",
+        "mov r32, imm32",
+        "mov r64, imm32",
+        "mov qword [rdi+disp], imm32"
+    };
+    printf("%s: %llu values ok\n", name[form], (unsigned long long)checked[form]);
+}
 
-    // ========== SUBPS ==========
-    printf("=== SUBPS ===\n");
-    a.mf = _mm_set_ps(1.0f, INFINITY, -INFINITY, 5.0f);
-    b.mf = _mm_set_ps(2.0f, INFINITY, -INFINITY, 3.0f);
-    r.mf = _mm_sub_ps(a.mf, b.mf);
-    printf("subps("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+int main(int argc, char** argv)
+{
+    int quick = argc > 1 && !strcmp(argv[1], "quick");
+    uint64_t* v16;
+    uint64_t* v24;
+    uint64_t* r64;
+    uint64_t* r32;
+    uint64_t* kpow;
+    uint64_t step24 = quick ? 0x400 : STEP24;
+    size_t nrand64 = quick ? 2000 : NRAND64;
+    size_t nrand32 = quick ? 1000 : NRAND32;
+    size_t n24 = (N24 - 1) / step24 + 1;
+    uint64_t i, k;
+    int d;
 
-    // ========== HADDPD ==========
-    printf("=== HADDPD ===\n");
-    // hadd: r[0] = a[0]+a[1], r[1] = b[0]+b[1]
-    a.md = _mm_set_pd(-INFINITY, INFINITY);  // a[0]+a[1] = inf + -inf = -nan
-    b.md = _mm_set_pd(1.0, 2.0);            // b[0]+b[1] = 2+1 = 3
-    r.md = _mm_hadd_pd(a.md, b.md);
-    printf("haddpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+    pool_size = 64u << 20;
+    pool = mmap(NULL, pool_size, PROT_READ | PROT_WRITE | PROT_EXEC,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (pool == MAP_FAILED) {
+        perror("mmap");
+        return 1;
+    }
 
-    // ========== HADDPS ==========
-    printf("=== HADDPS ===\n");
-    // hadd: r[0]=a[0]+a[1], r[1]=a[2]+a[3], r[2]=b[0]+b[1], r[3]=b[2]+b[3]
-    a.mf = _mm_set_ps(-INFINITY, INFINITY, 1.0f, 2.0f);
-    b.mf = _mm_set_ps(3.0f, 4.0f, -INFINITY, INFINITY);
-    r.mf = _mm_hadd_ps(a.mf, b.mf);
-    printf("haddps("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+    v16 = malloc(N16 * sizeof(uint64_t));
+    v24 = malloc(n24 * sizeof(uint64_t));
+    r64 = malloc(nrand64 * sizeof(uint64_t));
+    r32 = malloc(nrand32 * sizeof(uint64_t));
+    kpow = malloc(NPOW * sizeof(uint64_t));
+    if (!v16 || !v24 || !r64 || !r32 || !kpow) {
+        perror("malloc");
+        return 1;
+    }
 
-    // ========== ADDSUBPD ==========
-    printf("=== ADDSUBPD ===\n");
-    // addsubpd: r[0] = a[0]-b[0], r[1] = a[1]+b[1]
-    a.md = _mm_set_pd(INFINITY, INFINITY);
-    b.md = _mm_set_pd(-INFINITY, INFINITY);  // r[0]=inf-inf=-nan, r[1]=inf+(-inf)=-nan
-    r.md = _mm_addsub_pd(a.md, b.md);
-    printf("addsubpd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+    for (i = 0; i < N16; ++i)
+        v16[i] = i;
+    for (i = 0; i < n24; ++i)
+        v24[i] = i * step24;
+    for (i = 0; i < nrand64; ++i)
+        r64[i] = rng();
+    for (i = 0; i < nrand32; ++i)
+        r32[i] = (uint32_t)rng();
+    i = 0;
+    for (k = 0; k < 64; ++k) {
+        for (d = -0x1000; d <= 0x1000; d += 0x400) {
+            kpow[i] = (UINT64_C(1) << k) + (uint64_t)(int64_t)d;
+            ++i;
+        }
+    }
 
-    // ========== ADDSUBPS ==========
-    printf("=== ADDSUBPS ===\n");
-    // addsubps: r[0]=a[0]-b[0], r[1]=a[1]+b[1], r[2]=a[2]-b[2], r[3]=a[3]+b[3]
-    a.mf = _mm_set_ps(INFINITY, INFINITY, INFINITY, INFINITY);
-    b.mf = _mm_set_ps(-INFINITY, INFINITY, -INFINITY, INFINITY);
-    r.mf = _mm_addsub_ps(a.mf, b.mf);
-    printf("addsubps("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+    run_values(F_MOV64, v16, N16);
+    run_values(F_MOV64, r64, nrand64);
+    run_values(F_MOV64, r32, nrand32);
+    run_values(F_MOV64, kpow, NPOW);
+    run_values(F_MOV64, special, sizeof(special) / sizeof(special[0]));
 
-    // ========== MULSD ==========
-    printf("=== MULSD ===\n");
-    a.md = _mm_set_pd(99.0, 0.0);
-    b.md = _mm_set_pd(77.0, INFINITY);
-    r.md = _mm_mul_sd(a.md, b.md);
-    printf("mulsd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+    run_values(F_MOV32, v16, N16);
+    run_values(F_MOV32, v24, n24);
+    run_values(F_MOV32, r32, nrand32);
+    run_values(F_MOV32, kpow, NPOW);
+    run_values(F_MOV32, special, sizeof(special) / sizeof(special[0]));
 
-    // ========== MULSS ==========
-    printf("=== MULSS ===\n");
-    a.mf = _mm_set_ps(1.0f, 2.0f, 3.0f, 0.0f);
-    b.mf = _mm_set_ps(4.0f, 5.0f, 6.0f, INFINITY);
-    r.mf = _mm_mul_ss(a.mf, b.mf);
-    printf("mulss("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+    run_values(F_MOVSXD, v16, N16);
+    run_values(F_MOVSXD, v24, n24);
+    run_values(F_MOVSXD, r32, nrand32);
+    run_values(F_MOVSXD, kpow, NPOW);
+    run_values(F_MOVSXD, special, sizeof(special) / sizeof(special[0]));
 
-    // ========== DIVSD ==========
-    printf("=== DIVSD ===\n");
-    a.md = _mm_set_pd(99.0, 0.0);
-    b.md = _mm_set_pd(77.0, 0.0);
-    r.md = _mm_div_sd(a.md, b.md);
-    printf("divsd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
+    run_values(F_STORE32, v16, N16);
+    run_values(F_STORE32, kpow, NPOW);
+    run_values(F_STORE32, special, sizeof(special) / sizeof(special[0]));
 
-    // ========== DIVSS ==========
-    printf("=== DIVSS ===\n");
-    a.mf = _mm_set_ps(1.0f, 2.0f, 3.0f, 0.0f);
-    b.mf = _mm_set_ps(4.0f, 5.0f, 6.0f, 0.0f);
-    r.mf = _mm_div_ss(a.mf, b.mf);
-    printf("divss("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
+    for (d = 0; d < F_COUNT; ++d)
+        print_group(d);
+    printf("move immediate: %s\n", failures ? "FAILED" : "PASS");
 
-    // ========== ADDSD ==========
-    printf("=== ADDSD ===\n");
-    a.md = _mm_set_pd(99.0, INFINITY);
-    b.md = _mm_set_pd(77.0, -INFINITY);
-    r.md = _mm_add_sd(a.md, b.md);
-    printf("addsd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
-
-    // ========== ADDSS ==========
-    printf("=== ADDSS ===\n");
-    a.mf = _mm_set_ps(1.0f, 2.0f, 3.0f, INFINITY);
-    b.mf = _mm_set_ps(4.0f, 5.0f, 6.0f, -INFINITY);
-    r.mf = _mm_add_ss(a.mf, b.mf);
-    printf("addss("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
-
-    // ========== SUBSD ==========
-    printf("=== SUBSD ===\n");
-    a.md = _mm_set_pd(99.0, INFINITY);
-    b.md = _mm_set_pd(77.0, INFINITY);
-    r.md = _mm_sub_sd(a.md, b.md);
-    printf("subsd("); print_pd(a); printf(", "); print_pd(b); printf(") = "); print_pd(r); printf("\n");
-
-    // ========== SUBSS ==========
-    printf("=== SUBSS ===\n");
-    a.mf = _mm_set_ps(1.0f, 2.0f, 3.0f, INFINITY);
-    b.mf = _mm_set_ps(4.0f, 5.0f, 6.0f, INFINITY);
-    r.mf = _mm_sub_ss(a.mf, b.mf);
-    printf("subss("); print_ps(a); printf(", "); print_ps(b); printf(") = "); print_ps(r); printf("\n");
-
-    // ========== NaN propagation (input NaN should propagate) ==========
-    printf("=== NaN propagation ===\n");
-    // When one input is NaN, result should be NaN (sign preserved from input)
-    v128 nan_pos, nan_neg;
-    nan_pos.u64[0] = 0x7FF8000000000000ULL; // +NaN
-    nan_pos.u64[1] = 0x7FF8000000000000ULL;
-    nan_neg.u64[0] = 0xFFF8000000000000ULL; // -NaN
-    nan_neg.u64[1] = 0xFFF8000000000000ULL;
-
-    a.md = _mm_set_pd(1.0, 2.0);
-    r.md = _mm_add_pd(a.md, nan_neg.md);
-    printf("addpd(normal, -nan) = "); print_pd(r); printf("\n");
-
-    r.md = _mm_add_pd(a.md, nan_pos.md);
-    printf("addpd(normal, +nan) = "); print_pd(r); printf("\n");
-
-    r.md = _mm_mul_pd(nan_neg.md, a.md);
-    printf("mulpd(-nan, normal) = "); print_pd(r); printf("\n");
-
-    // ========== Summary ==========
-    printf("NaN sign bit tests complete\n");
-
-    return 0;
+    free(v16);
+    free(v24);
+    free(r64);
+    free(r32);
+    free(kpow);
+    return failures ? 1 : 0;
 }

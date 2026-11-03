@@ -37,6 +37,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
     int32_t i32, tmp;
     int64_t i64, j64;
     uint8_t u8;
+    uint8_t f_save;
     uint8_t gb1, gb2, eb1, eb2;
     uint16_t u16;
     uint32_t u32;
@@ -984,8 +985,10 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                 B_NEXT_nocond;
                 MARK;
                 STORE_XEMU_CALL(xRIP);
+                f_save = dyn->f;
                 CALL_S(const_native_br, -1);
                 LOAD_XEMU_CALL(xRIP);
+                dyn->f = f_save;
             } else {
                 INST_NAME("Illegal 62");
                 if(BOX64DRENV(dynarec_safeflags)>1) {
@@ -1604,16 +1607,14 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             } else {                    // mem <= reg
                 IF_UNALIGNED(ip) {
                     MESSAGE(LOG_DEBUG, "\tUnaligned path");
+                    NOLRCPC();
                     addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, &lock, 0, 0);
                     if(gd==wback) {
                         MOVx_REG(x2, wback);
                         wback = x2;
                     }
                     for(int i=0; i<(1<<(2+rex.w)); ++i) {
-                        if(dyn->insts[ninst].use_lrcpc)
-                            STLURB(gd, wback, i);
-                        else
-                            STURB_I9(gd, wback, i);
+                        STURB_I9(gd, wback, i);
                         RORxw(gd, gd, 8);
                     }
                     // gd restored after that
@@ -2034,6 +2035,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             if(rex.rep) {
                 INST_NAME("REP MOVSB");
                 CBZx_NEXT(xRCX);
+                NOLRCPC();
                 if(rex.is67 && !rex.is32bits) {
                     MOVw_REG(xRDI, xRDI);
                     MOVw_REG(xRSI, xRSI);
@@ -2095,8 +2097,9 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     MOVw_REG(xRSI, xRSI);
                 }
                 GETDIR(x3, 1);
-                LDRB_U12(x1, xRSI, 0);
-                STRB_U12(x1, xRDI, 0);
+                unscaled = 0;
+                LDB(x1, xRSI, 0);
+                STB(x1, xRDI, 0);
                 ADDy_REG(xRSI, xRSI, x3);
                 ADDy_REG(xRDI, xRDI, x3);
             }
@@ -2107,6 +2110,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             if(rex.rep) {
                 INST_NAME("REP MOVSD");
                 CBZx_NEXT(xRCX);
+                NOLRCPC();
                 if(rex.is67 && !rex.is32bits) {
                     MOVw_REG(xRDI, xRDI);
                     MOVw_REG(xRSI, xRSI);
@@ -2131,8 +2135,9 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     MOVw_REG(xRSI, xRSI);
                 }
                 GETDIR(x3, rex.w?8:4);
-                LDRxw_U12(x1, xRSI, 0);
-                STRxw_U12(x1, xRDI, 0);
+                unscaled = 0;
+                LDxw(x1, xRSI, 0);
+                STxw(x1, xRDI, 0);
                 ADDy_REG(xRSI, xRSI, x3);
                 ADDy_REG(xRDI, xRDI, x3);
             }
@@ -2150,6 +2155,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     SETFLAGS(X_ALL, SF_SET_PENDING);
                 SMREAD();
                 CBZx_NEXT(xRCX);
+                NOLRCPC();
                 if(rex.is67 && !rex.is32bits) {
                     MOVw_REG(xRDI, xRDI);
                     MOVw_REG(xRSI, xRSI);
@@ -2183,8 +2189,9 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                 }
                 GETDIR(x3, 1);
                 SMREAD();
-                LDRB_U12(x1, xRSI, 0);
-                LDRB_U12(x2, xRDI, 0);
+                unscaled = 0;
+                LDB(x1, xRSI, 0);
+                LDB(x2, xRDI, 0);
                 ADDy_REG(xRSI, xRSI, x3);
                 ADDy_REG(xRDI, xRDI, x3);
                 emit_cmp8(dyn, ninst, x1, x2, x3, x4, x5);
@@ -2203,6 +2210,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     SETFLAGS(X_ALL, SF_SET_PENDING);
                 SMREAD();
                 CBZx_NEXT(xRCX);
+                NOLRCPC();
                 if(rex.is67 && !rex.is32bits) {
                     MOVw_REG(xRDI, xRDI);
                     MOVw_REG(xRSI, xRSI);
@@ -2236,8 +2244,9 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                 }
                 GETDIR(x3, rex.w?8:4);
                 SMREAD();
-                LDRxw_U12(x1, xRSI, 0);
-                LDRxw_U12(x2, xRDI, 0);
+                unscaled = 0;
+                LDxw(x1, xRSI, 0);
+                LDxw(x2, xRDI, 0);
                 ADDy_REG(xRSI, xRSI, x3);
                 ADDy_REG(xRDI, xRDI, x3);
                 emit_cmp32(dyn, ninst, rex, x1, x2, x3, x4, x5);
@@ -2262,6 +2271,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             if(rex.rep) {
                 INST_NAME("REP STOSB");
                 CBZx_NEXT(xRCX);
+                NOLRCPC();
                 if(rex.is67 && !rex.is32bits) {
                     MOVw_REG(xRDI, xRDI);
                 }
@@ -2313,7 +2323,8 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     MOVw_REG(xRDI, xRDI);
                 }
                 GETDIR(x3, 1);
-                STRB_U12(xRAX, xRDI, 0);
+                unscaled = 0;
+                STB(xRAX, xRDI, 0);
                 ADDy_REG(xRDI, xRDI, x3);
             }
             SMWRITE();
@@ -2322,6 +2333,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             if(rex.rep) {
                 INST_NAME("REP STOSD");
                 CBZx_NEXT(xRCX);
+                NOLRCPC();
                 if(rex.is67 && !rex.is32bits) {
                     MOVw_REG(xRDI, xRDI);
                 }
@@ -2343,7 +2355,8 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     MOVw_REG(xRDI, xRDI);
                 }
                 GETDIR(x3, rex.w?8:4);
-                STRxw_U12(xRAX, xRDI, 0);
+                unscaled = 0;
+                STxw(xRAX, xRDI, 0);
                 ADDy_REG(xRDI, xRDI, x3);
             }
             SMWRITE();
@@ -2354,6 +2367,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             } else {
                 INST_NAME("LODSB");
             }
+            NOLRCPC();
             GETDIR(x1, 1);
             SMREAD();
             if(rex.rep) {
@@ -2377,6 +2391,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             } else {
                 INST_NAME("LODSD");
             }
+            NOLRCPC();
             GETDIR(x1, rex.w?8:4);
             if(rex.rep) {
                 CBZx_NEXT(xRCX);
@@ -2393,6 +2408,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             }
             break;
         case 0xAE:
+            NOLRCPC();
             switch(rex.rep) {
             case 1:
             case 2:
@@ -2441,6 +2457,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
             }
             break;
         case 0xAF:
+            NOLRCPC();
             switch(rex.rep) {
             case 1:
             case 2:
@@ -2906,6 +2923,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                     } else {                    // mem <= i32
                         IF_UNALIGNED(ip) {
                             MESSAGE(LOG_DEBUG, "\tUnaligned path");
+                            NOLRCPC();
                             addr = geted(dyn, addr, ninst, nextop, &wback, x2, &fixedaddress, NULL, 0, 0, rex, &lock, 0, 4);
                             i64 = F32S;
                             if(i64) {
@@ -3967,6 +3985,8 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             MOV64x(x4, j64);
                         }
                         LDRx_U12(x4, x4, 0);
+                        if (BOX64DRENV(dynarec_callret) >= 3)
+                            doLeaveBlock(dyn, ninst, x1, x2, x3);
                         BR(x4);
                     }
                     CLEARIP();
@@ -4665,6 +4685,8 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                         if(dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);
                         TABLE64_(x4, j64);
                         LDRx_U12(x4, x4, 0);
+                        if (BOX64DRENV(dynarec_callret) >= 3)
+                            doLeaveBlock(dyn, ninst, x1, x2, x3);
                         BR(x4);
                     }
                     CLEARIP();
@@ -4716,7 +4738,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             STPx_S7_preindex(x4, xRIP, xSP, -16);
                         }
                         if (rex.w) PUSH2(x5, xRIP); else PUSH2_32(x5, xRIP);
-                        STH(x3, xEmu, offsetof(x64emu_t, segs[_CS]));
+                        STRH_U12(x3, xEmu, offsetof(x64emu_t, segs[_CS]));
                         jump_to_next(dyn, 0, ed, ninst, rex.is32bits);
                         CALLRET_RET(can_continue);
                         if (BOX64DRENV(dynarec_callret) && !can_continue) {
@@ -4726,6 +4748,8 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                             if(dyn->need_reloc) AddRelocTable64RetEndBlock(dyn, ninst, addr, STEP);
                             TABLE64_(x4, j64);
                             LDRx_U12(x4, x4, 0);
+                            if (BOX64DRENV(dynarec_callret) >= 3)
+                                doLeaveBlock(dyn, ninst, x1, x2, x3);
                             BR(x4);
                         }
                         CLEARIP();
@@ -4752,7 +4776,7 @@ uintptr_t dynarec64_00(dynarec_arm_t* dyn, uintptr_t addr, uintptr_t ip, int nin
                         LDxw(x1, wback, 0);
                         ed = x1;
                         LDH(x3, wback, rex.w?8:4);
-                        STH(x3, xEmu, offsetof(x64emu_t, segs[_CS]));
+                        STRH_U12(x3, xEmu, offsetof(x64emu_t, segs[_CS]));
                         jump_to_next(dyn, 0, ed, ninst, rex.w?0:1);
                         *need_epilog = 0;
                         *ok = 0;
