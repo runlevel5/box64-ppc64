@@ -55,6 +55,7 @@ extern char* ftrace_name;
     INTEGER(BOX64_DYNAREC_DIRTY, dynarec_dirty, 0, 0, 2, 0, 2)                   \
     BOOLEAN(BOX64_DYNAREC_NOHOTPAGE, dynarec_nohotpage, 0, 0, 1)                 \
     BOOLEAN(BOX64_DYNAREC_DIV0, dynarec_div0, 0, 1, 1)                           \
+    BOOLEAN(BOX64_DYNAREC_DFCHECK, dynarec_dfcheck, 0, 1, 1)                     \
     INTEGER(BOX64_DYNAREC_DUMP, dynarec_dump, 0, 0, 3, 1, 0)                     \
     BOOLEAN(BOX64_DYNAREC_DISASM, dynarec_disasm, 0, 0, 0)                       \
     STRING(BOX64_DYNAREC_DUMP_RANGE, dynarec_dump_range, 1, 0)                   \

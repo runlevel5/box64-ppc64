@@ -676,6 +676,7 @@ void call_c(dynarec_ppc64le_t* dyn, int ninst, ppc64le_consts_t fnc, int reg, in
         STW(reg, offsetof(x64emu_t, df), xEmu);
         dyn->f = status_none;
     }
+    dyn->insts[ninst].df_written = 1; // the C helper settles emu->df itself
     if (savereg == 0)
         savereg = x87pc;
     if (saveflags) {
