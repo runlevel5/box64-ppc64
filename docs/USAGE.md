@@ -319,6 +319,12 @@ Enable or disable the generation of division-by-zero exception. Available in Wow
  * 0: Do not generate the division-by-zero exception. [Default]
  * 1: Generate the division-by-zero exception.
 
+### BOX64_DYNAREC_DFCHECK
+
+PPC64LE only. Verify the deferred-flags bookkeeping at every block exit: when the dynarec believes `emu->df` holds no deferred record, the generated code checks that it reads 0 and traps (SIGTRAP) otherwise. Debug aid, slows the dynarec down.
+
+ * 0: No runtime check. [Default]
+ * 1: Trap at a block exit where a tracked "no deferred record" state disagrees with `emu->df`.
 ### BOX64_DYNAREC_TBB
 
 Enable or disable libtbb detection.

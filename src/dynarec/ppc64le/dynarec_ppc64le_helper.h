@@ -1321,14 +1321,24 @@
     do {                                       \
         LI(x4, 0);                             \
         STW(x4, offsetof(x64emu_t, df), xEmu); \
+        dyn->insts[ninst].df_written = 1;      \
     } while (0)
 
-#define CHECK_DFNONE(N)                      \
-    do {                                     \
-        if (dyn->f == status_none_pending) { \
-            FORCE_DFNONE();                  \
-            if (N) dyn->f = status_none;     \
-        }                                    \
+// At a block exit a pending "none" is written to emu->df here. With
+// BOX64_DYNAREC_DFCHECK=1 a tracked "none" is also verified at runtime: emu->df
+// must read 0, else the exit traps (SIGTRAP). The "set" state cannot be
+// verified the same way, since a C helper run in between settles emu->df to 0.
+#define CHECK_DFNONE(N)                                              \
+    do {                                                             \
+        if (dyn->f == status_none_pending) {                         \
+            FORCE_DFNONE();                                          \
+            if (N) dyn->f = status_none;                             \
+        } else if (BOX64ENV(dynarec_dfcheck) && dyn->f == status_none) { \
+            LWZ(x4, offsetof(x64emu_t, df), xEmu);                   \
+            CMPDI(x4, 0);                                            \
+            BEQ(8);                                                  \
+            TRAP();                                                  \
+        }                                                            \
     } while (0)
 
 #define SET_DFNONE()                      \
@@ -1343,6 +1353,7 @@
         MOV32w(S, (N));                       \
         STW(S, offsetof(x64emu_t, df), xEmu); \
         dyn->f = status_set;                  \
+        dyn->insts[ninst].df_written = 1;     \
     } else                                    \
         SET_DFNONE()
 
@@ -1474,7 +1485,7 @@
             && (dyn->insts[ninst].x64.gen_flags & (~(A))))                                                              \
             GRABFLAGS(((dyn->insts[ninst].x64.gen_flags & X_PEND) ? X_ALL : dyn->insts[ninst].x64.gen_flags) & (~(A))); \
         if (dyn->insts[ninst].x64.gen_flags) switch (B) {                                                               \
-                case SF_SET_DF: dyn->f = status_set; break;                                                             \
+                case SF_SET_DF: dyn->f = status_set; dyn->insts[ninst].df_claimed = 1; break;                           \
                 case SF_SET_NODF: SET_DFNONE(); break;                                                                  \
                 case SF_SUBSET:                                                                                         \
                 case SF_SUBSET_PENDING:                                                                                 \
