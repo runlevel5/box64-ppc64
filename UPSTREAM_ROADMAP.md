@@ -200,13 +200,13 @@ Line counts below are from `wc -l` on `ppc64le-jit` at `4c8ba4ea0`.
 
 Upstream the `tests/dynarec/` NASM test infrastructure for opcode-level regression testing. This is orthogonal to opcode upstreaming (Phases 1-7) and can be proposed at any time. Every backend (ARM64, RV64, LA64, PPC64LE) can use it, since each test runs under both the interpreter and the dynarec.
 
-**Current state** (`ppc64le-jit`): 59 `.asm` tests, each with a pre-built static x86_64 ELF in `tests/dynarec/bin/` (59 binaries). Alongside them:
+**Current state** (`ppc64le-jit`): 61 `.asm` tests, each with a pre-built static x86_64 ELF in `tests/dynarec/bin/` (61 binaries). Alongside them:
 - `test_framework.inc` (64-bit) and `test_framework_32.inc` (32-bit), the macro framework
 - `run_dynarec_tests.sh`, which runs pre-built binaries and needs no NASM
 - `run_tests.sh`, which builds from `.asm` and runs
 - `gen_flagstate_tests.py`, the generator for `test_flagstate.asm`
 
-Upstream has no `tests/dynarec/` directory and no ctest entry for these tests. On 2026-11-08 on power9, all 59 suites passed (`SUMMARY: 59 passed, 0 failed, 0 skipped / 59 total`).
+Upstream has no `tests/dynarec/` directory and no ctest entry for these tests. On 2026-11-08 on power9, all 61 suites passed (`SUMMARY: 61 passed, 0 failed, 0 skipped / 61 total`).
 
 #### How the tests decide pass/fail
 
@@ -237,14 +237,14 @@ endif()
 `${CMAKE_BINARY_DIR}/${BOX64}` is the same program path that `box64_add_test()` already passes to `runTest.cmake` (`tests/CMakeLists.txt:34`).
 
 **Verification (power9, CMake 4.3.0, 2026-11-08):** the fragment was included from a minimal project, with the box64 path supplied as a variable.
-- Against `build/box64`: `100% tests passed, 0 tests failed out of 59`.
+- Against `build/box64`: `100% tests passed, 0 tests failed out of 59` (the 59 binaries present at the time).
 - Against a wrapper that rewrites the first `PASS` to `FAIL` in dynarec-mode output: `ctest -R "dynarec_test_(shifts|mov)$"` reported both tests as `Failed`. This shows that a mismatch reaches ctest.
 
 The fragment has not been tried inside the full box64 tree yet.
 
 Do **not** relink the tests with the host `ld` from CMake or CI. On power9, `ld -o t t.o` on a NASM `elf64` object fails with `i386:x86-64 architecture of input file 't.o' is incompatible with powerpc:common64 output`; `ld.lld -m elf_x86_64 -o t t.o` produces `ELF 64-bit LSB executable, x86-64`. The same applies to every non-x86 host. If optional rebuilding is wanted, it needs `ld.lld -m elf_x86_64` or an x86_64 cross `ld`.
 
-**Test inventory** (59 files on `ppc64le-jit`; each description comes from the file's header comment, and the sub-test count is the `Result: N/N` from the 2026-11-08 run):
+**Test inventory** (61 files on `ppc64le-jit`; each description comes from the file's header comment, and the sub-test count is the `Result: N/N` from the 2026-11-08 run):
 
 | Test file | Sub-tests | Description |
 |-----------|-----------|-------------|
@@ -283,6 +283,8 @@ Do **not** relink the tests with the host `ld` from CMake or CI. On power9, `ld 
 | `test_sha.asm` | 10 | SHA1/SHA256 extension instructions |
 | `test_shifts.asm` | 33 | SHL, SHR, SAR, ROL, ROR by immediate and CL, with flags |
 | `test_shufps.asm` | 76 | SHUFPS, every optimisation tier |
+| `test_signal_df.asm` | 2 | Regression: a signal after the flags are materialised must not recompute them from a stale `emu->df` |
+| `test_signal_up32.asm` | 2 | Regression: a signal right after a 64-bit write must not clear that register's upper half |
 | `test_sse3_move.asm` | 30 | MOVDDUP, MOVSLDUP, MOVSHDUP, LDDQU, MOVNTDQ, MOVNTPS, reciprocal approximations |
 | `test_sse4_ext.asm` | 54 | PMOVSX/PMOVZX, PMINS*/PMAXS*/PMINU*/PMAXU*, PHMINPOSUW |
 | `test_sse_arith.asm` | 45 | ADD/SUB/MUL/DIV/SQRT/MIN/MAX PS/PD/SS/SD, COMISS/COMISD |
@@ -314,7 +316,7 @@ SHLD/SHRD flags are covered by `test_updateflags_carry.asm`; there is no separat
 - **Batch 8a**: Framework, runner and integer tests (`test_framework.inc`, `run_dynarec_tests.sh`, `test_16bit_alu`, `test_add_or_sub`, `test_and_xor`, `test_adc_sbb`, `test_adcx_adox`, `test_cmp_test`, `test_int_arith`, `test_mov`, `test_mov_push_imm`, `test_push_pop_misc`, `test_shifts`, all `test_updateflags*`, `test_misc_flags`, `test_misc_int`, `test_movs_stos`, `test_loop_jecxz`, `test_lock_atomic`)
 - **Batch 8b**: SSE/SSE2/SSE3/SSE4/AES/SHA tests (all `test_sse*`, `test_bit_extract`, `test_conversions`, `test_pmaddubsw`, `test_shufps`, `test_aes_crc`, `test_sha`, `test_comiss`)
 - **Batch 8c**: x87 (`test_x87`, `test_x87_d8`, `test_x87_nan` + its `.env`)
-- **Batch 8d**: Flag fusion and hand-off tests (`test_jcc_fusion`, `test_setcc_fusion`, `test_cmovcc_fusion`, `test_sub_carry_fusion`, `test_add_carry_fusion`, `test_comiss_df`, `test_flagstate` + `gen_flagstate_tests.py`)
+- **Batch 8d**: Flag fusion and hand-off tests (`test_jcc_fusion`, `test_setcc_fusion`, `test_cmovcc_fusion`, `test_sub_carry_fusion`, `test_add_carry_fusion`, `test_comiss_df`, `test_flagstate` + `gen_flagstate_tests.py`, `test_signal_df`, `test_signal_up32`)
 - **Batch 8e**: 32-bit tests (`test_framework_32.inc`, all `test_32bit_*`), which need a BOX32 build
 
 **Prerequisites**: Discuss with maintainer (ptitSeb) before submitting. This introduces a new testing paradigm for the project. Key selling points:
@@ -433,7 +435,7 @@ These optimizations apply to emit functions that are already upstream. The upstr
 2. **Single PR**: All 151 transformations in one PR — matches the single-commit approach used on `ppc64le-jit`
 3. **Fold into opcode PRs**: Apply branchless patterns as emit functions are upstreamed — but most emit functions are already upstream with branchy code
 
-Recommendation: A single PR with clear commit message explaining the branchless templates, after all current opcode PRs are merged. The transformation is mechanical and well-tested: 63/63 ctest and 59/59 NASM suites pass on `ppc64le-jit` (power9, 2026-11-08).
+Recommendation: A single PR with clear commit message explaining the branchless templates, after all current opcode PRs are merged. The transformation is mechanical and well-tested: 63/63 ctest and 61/61 NASM suites pass on `ppc64le-jit` (power9, 2026-11-08).
 
 ## Upstream Style Reference
 
@@ -547,7 +549,7 @@ Expected: `100% tests passed, 0 tests failed out of 63`.
 ssh power9 'cd ~/box64 && BOX64=$HOME/box64/build/box64 bash tests/dynarec/run_dynarec_tests.sh'
 ```
 
-Expected: `SUMMARY: 59 passed, 0 failed, 0 skipped / 59 total`. There are no known failures: `test_aes_crc` 36/36, `test_misc_flags` 30/30, `test_sse_insert_extract` 33/33 and `test_updateflags_mul` 22/22 all pass now. Any failure is a regression.
+Expected: `SUMMARY: 61 passed, 0 failed, 0 skipped / 61 total`. There are no known failures: `test_aes_crc` 36/36, `test_misc_flags` 30/30, `test_sse_insert_extract` 33/33 and `test_updateflags_mul` 22/22 all pass now. Any failure is a regression.
 
 Individual tests: `bash tests/dynarec/run_dynarec_tests.sh test_shifts test_mov`; list them with `-l`.
 

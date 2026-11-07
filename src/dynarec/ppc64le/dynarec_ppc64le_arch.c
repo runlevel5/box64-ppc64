@@ -263,7 +263,7 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
         return;
     int ninst = getX64AddressInst(db, x64pc);
     dynarec_log(LOG_INFO, "adjust_arch(...), db=%p, x64pc=%p, nints=%d", db, (void*)x64pc, ninst);
-    if(ninst<0) {
+    if(ninst<0 || ninst>=db->isize) {
         dynarec_log_prefix(0, LOG_INFO, "\n");
         return;
     }
@@ -272,18 +272,21 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
         CHECK_FLAGS(emu);
         return;
     }
-    // look for state at ninst-1
-    arch_arch_t* arch = db->arch;
+    // the register caches come from the state at ninst-1, the flags and the
+    // stale upper halves from the entry state of ninst itself
+    arch_arch_t* arch = db->arch;   // state at ninst-1
+    arch_arch_t* cur = arch;        // state at ninst
     arch_arch_t* next = arch;
     #define GO(A) arch_##A##_t* A = NULL;
     SUPER()
     #undef GO
-    int i = 0;
-    while(i<(ninst)) {  // this will look for ninst-1 state
-        arch = next;
-        dynarec_log_prefix(0, (i<(ninst-1))?LOG_DEBUG:LOG_INFO, "[ seq=%d%s%s%s%s%s ] ", arch->seq, arch->flags?" Flags":"", arch->x87?" x87":"", arch->mmx?" MMX":"", arch->sse?" SSE":"", arch->ymm?" YMM":"");
-        i += 1+arch->seq;
-        next = (arch_arch_t*)((uintptr_t)next + sizeof_arch(arch));
+    int i = -1;
+    while(i<ninst) {
+        cur = next;
+        if(i<ninst-1) arch = cur;
+        dynarec_log_prefix(0, (i<(ninst-1))?LOG_DEBUG:LOG_INFO, "[ seq=%d%s%s%s%s%s ] ", cur->seq, cur->flags?" Flags":"", cur->x87?" x87":"", cur->mmx?" MMX":"", cur->sse?" SSE":"", cur->ymm?" YMM":"");
+        i += 1+cur->seq;
+        next = (arch_arch_t*)((uintptr_t)next + sizeof_arch(cur));
     }
     int sz = sizeof(arch_arch_t);
     #define GO(A)                                   \
@@ -293,14 +296,17 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
     }
     SUPER()
     #undef GO
+    flags = cur->flags ? (arch_flags_t*)((uintptr_t)cur + sizeof(arch_arch_t)) : NULL;
     if(flags) {
         dynarec_log_prefix(0, LOG_INFO, " flags[%s] ", flags->defered?"defered":"");
         if(flags->defered) {
             CHECK_FLAGS(emu);
         }
+    } else {
+        emu->df = d_none;
     }
     // registers whose zero-up was skipped by the dynarec: the emu copy has stale upper bits
-    uint16_t up32 = arch->up32;
+    uint16_t up32 = cur->up32;
     while (up32) {
         int r = __builtin_ctz(up32);
         up32 &= up32 - 1;
