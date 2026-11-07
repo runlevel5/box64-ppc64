@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <pthread.h>
 #include <math.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -21,6 +23,8 @@
 #include "x64trace.h"
 #include "signals.h"
 #include "dynarec_native.h"
+#include "dynablock.h"
+#include "../dynablock_private.h"
 #include "dynarec_ppc64le_private.h"
 #include "dynarec_ppc64le_functions.h"
 #include "custommem.h"
@@ -28,15 +32,82 @@
 #include "gdbjit.h"
 #include "perfmap.h"
 #include "elfloader.h"
+#include "ppc64le_mapping.h"
 
-// ---- FPU scratch/register management stubs ----
-// TODO: Full implementations in a follow-up PR
+#define XMM0 0
+#define X870 XMM0 + 16
+#define EMM0 XMM0 + 16
 
+// Get a FPU scratch reg
+int fpu_get_scratch(dynarec_ppc64le_t* dyn)
+{
+    return SCRATCH0 + dyn->v.fpu_scratch++; // return a VMX reg
+}
+// Reset scratch regs counter
 void fpu_reset_scratch(dynarec_ppc64le_t* dyn)
 {
     dyn->v.fpu_scratch = 0;
     dyn->v.ymm_used = 0;
     dyn->v.xmm_used = 0;
+}
+// Get a x87 double reg
+int fpu_get_reg_x87(dynarec_ppc64le_t* dyn, int t, int n)
+{
+    int i = X870;
+    while (dyn->v.fpuused[i])
+        ++i;
+    dyn->v.fpuused[i] = 1;
+    dyn->v.vmxcache[i].n = n;
+    dyn->v.vmxcache[i].t = t;
+    dyn->v.news |= (1 << i);
+    dyn->use_x87 = 1;
+    return i;
+}
+// Free a FPU double reg
+void fpu_free_reg(dynarec_ppc64le_t* dyn, int reg)
+{
+    // TODO: check upper limit?
+    dyn->v.fpuused[reg] = 0;
+    if (dyn->v.vmxcache[reg].t != VMX_CACHE_ST_F && dyn->v.vmxcache[reg].t != VMX_CACHE_ST_D && dyn->v.vmxcache[reg].t != VMX_CACHE_ST_I64)
+        dyn->v.vmxcache[reg].v = 0;
+}
+// Get an MMX double reg
+int fpu_get_reg_emm(dynarec_ppc64le_t* dyn, int emm)
+{
+    int ret = EMM0 + emm;
+    dyn->v.fpuused[ret] = 1;
+    dyn->v.vmxcache[ret].t = VMX_CACHE_MM;
+    dyn->v.vmxcache[ret].n = emm;
+    dyn->v.news |= (1 << (ret));
+    dyn->use_mmx = 1;
+    return ret;
+}
+// Get an XMM quad reg
+int fpu_get_reg_xmm(dynarec_ppc64le_t* dyn, int t, int xmm)
+{
+    int i;
+    i = XMM0 + xmm;
+
+    dyn->v.fpuused[i] = 1;
+    dyn->v.vmxcache[i].t = t;
+    dyn->v.vmxcache[i].n = xmm;
+    dyn->v.news |= (1 << i);
+    dyn->use_xmm = 1;
+    return i;
+}
+
+// Get an YMM quad reg
+int fpu_get_reg_ymm(dynarec_ppc64le_t* dyn, int t, int ymm)
+{
+    int i;
+    i = XMM0 + ymm;
+
+    dyn->v.fpuused[i] = 1;
+    dyn->v.vmxcache[i].t = t;
+    dyn->v.vmxcache[i].n = ymm;
+    dyn->v.news |= (1 << i);
+    dyn->use_ymm = 1;
+    return i;
 }
 
 // Reset fpu regs counter
@@ -53,41 +124,281 @@ void fpu_reset_reg(dynarec_ppc64le_t* dyn)
     fpu_reset_reg_vmxcache(&dyn->v);
 }
 
-// ---- VMX cache stubs ----
 
 int vmxcache_no_i64(dynarec_ppc64le_t* dyn, int ninst, int st, int a)
 {
-    // TODO
-    (void)dyn; (void)ninst; (void)st;
+    if (a == VMX_CACHE_ST_I64) {
+        vmxcache_promote_double(dyn, ninst, st);
+        return VMX_CACHE_ST_D;
+    }
     return a;
 }
 
 int vmxcache_get_st(dynarec_ppc64le_t* dyn, int ninst, int a)
 {
-    // TODO
-    (void)dyn; (void)ninst; (void)a;
+    if (dyn->insts[ninst].v.swapped) {
+        if (dyn->insts[ninst].v.combined1 == a)
+            a = dyn->insts[ninst].v.combined2;
+        else if (dyn->insts[ninst].v.combined2 == a)
+            a = dyn->insts[ninst].v.combined1;
+    }
+    for (int i = 0; i < 24; ++i)
+        if ((dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_F
+                || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_D
+                || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_I64)
+            && dyn->insts[ninst].v.vmxcache[i].n == a)
+            return dyn->insts[ninst].v.vmxcache[i].t;
+    // not in the cache yet, so will be fetched...
     return VMX_CACHE_ST_D;
 }
 
 int vmxcache_get_current_st(dynarec_ppc64le_t* dyn, int ninst, int a)
 {
-    // TODO
-    (void)dyn; (void)ninst; (void)a;
+    (void)ninst;
+    if (!dyn->insts)
+        return VMX_CACHE_ST_D;
+    for (int i = 0; i < 24; ++i)
+        if ((dyn->v.vmxcache[i].t == VMX_CACHE_ST_F
+                || dyn->v.vmxcache[i].t == VMX_CACHE_ST_D
+                || dyn->v.vmxcache[i].t == VMX_CACHE_ST_I64)
+            && dyn->v.vmxcache[i].n == a)
+            return dyn->v.vmxcache[i].t;
+    // not in the cache yet, so will be fetched...
     return VMX_CACHE_ST_D;
+}
+
+int vmxcache_get_st_f(dynarec_ppc64le_t* dyn, int ninst, int a)
+{
+    for (int i = 0; i < 24; ++i)
+        if (dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_F
+            && dyn->insts[ninst].v.vmxcache[i].n == a)
+            return i;
+    return -1;
+}
+
+int vmxcache_get_st_f_i64(dynarec_ppc64le_t* dyn, int ninst, int a)
+{
+    for (int i = 0; i < 24; ++i)
+        if ((dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_I64 || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_F)
+            && dyn->insts[ninst].v.vmxcache[i].n == a)
+            return i;
+    return -1;
+}
+
+static int vmxcache_get_st_f_noback(dynarec_ppc64le_t* dyn, int ninst, int a)
+{
+    for (int i = 0; i < 24; ++i)
+        if (dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_F
+            && dyn->insts[ninst].v.vmxcache[i].n == a)
+            return i;
+    return -1;
+}
+
+static int vmxcache_get_st_f_i64_noback(dynarec_ppc64le_t* dyn, int ninst, int a)
+{
+    for (int i = 0; i < 24; ++i)
+        if ((dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_I64 || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_F)
+            && dyn->insts[ninst].v.vmxcache[i].n == a)
+            return i;
+    return -1;
+}
+
+int vmxcache_get_current_st_f(dynarec_ppc64le_t* dyn, int a)
+{
+    for (int i = 0; i < 24; ++i)
+        if (dyn->v.vmxcache[i].t == VMX_CACHE_ST_F
+            && dyn->v.vmxcache[i].n == a)
+            return i;
+    return -1;
+}
+
+int vmxcache_get_current_st_f_i64(dynarec_ppc64le_t* dyn, int a)
+{
+    for (int i = 0; i < 24; ++i)
+        if ((dyn->v.vmxcache[i].t == VMX_CACHE_ST_I64 || dyn->v.vmxcache[i].t == VMX_CACHE_ST_F)
+            && dyn->v.vmxcache[i].n == a)
+            return i;
+    return -1;
+}
+
+static void vmxcache_promote_double_forward(dynarec_ppc64le_t* dyn, int ninst, int maxinst, int a);
+static void vmxcache_promote_double_internal(dynarec_ppc64le_t* dyn, int ninst, int maxinst, int a);
+static void vmxcache_promote_double_combined(dynarec_ppc64le_t* dyn, int ninst, int maxinst, int a)
+{
+    if (a == dyn->insts[ninst].v.combined1 || a == dyn->insts[ninst].v.combined2) {
+        if (a == dyn->insts[ninst].v.combined1) {
+            a = dyn->insts[ninst].v.combined2;
+        } else
+            a = dyn->insts[ninst].v.combined1;
+        int i = vmxcache_get_st_f_i64_noback(dyn, ninst, a);
+        if (i >= 0) {
+            dyn->insts[ninst].v.vmxcache[i].t = VMX_CACHE_ST_D;
+            if (dyn->insts[ninst].x87precision) dyn->need_x87check = 2;
+            if (!dyn->insts[ninst].v.barrier)
+                vmxcache_promote_double_internal(dyn, ninst - 1, maxinst, a - dyn->insts[ninst].v.stack_push);
+            // go forward if combined is not pop'd
+            if (a - dyn->insts[ninst].v.stack_pop >= 0)
+                if (!dyn->insts[ninst + 1].v.barrier)
+                    vmxcache_promote_double_forward(dyn, ninst + 1, maxinst, a - dyn->insts[ninst].v.stack_pop);
+        }
+    }
+}
+static void vmxcache_promote_double_internal(dynarec_ppc64le_t* dyn, int ninst, int maxinst, int a)
+{
+    if (dyn->insts[ninst + 1].v.barrier)
+        return;
+    while (ninst >= 0) {
+        a += dyn->insts[ninst].v.stack_pop; // adjust Stack depth: add pop'd ST (going backward)
+        int i = vmxcache_get_st_f_i64(dyn, ninst, a);
+        if (i < 0) return;
+        dyn->insts[ninst].v.vmxcache[i].t = VMX_CACHE_ST_D;
+        if (dyn->insts[ninst].x87precision) dyn->need_x87check = 2;
+        // check combined propagation too
+        if (dyn->insts[ninst].v.combined1 || dyn->insts[ninst].v.combined2) {
+            if (dyn->insts[ninst].v.swapped) {
+                if (a == dyn->insts[ninst].v.combined1)
+                    a = dyn->insts[ninst].v.combined2;
+                else if (a == dyn->insts[ninst].v.combined2)
+                    a = dyn->insts[ninst].v.combined1;
+            } else {
+                vmxcache_promote_double_combined(dyn, ninst, maxinst, a);
+            }
+        }
+        a -= dyn->insts[ninst].v.stack_push; // adjust Stack depth: remove push'd ST (going backward)
+        --ninst;
+        if (ninst < 0 || a < 0 || dyn->insts[ninst].v.barrier)
+            return;
+    }
+}
+
+static void vmxcache_promote_double_forward(dynarec_ppc64le_t* dyn, int ninst, int maxinst, int a)
+{
+    while ((ninst != -1) && (ninst < maxinst) && (a >= 0)) {
+        a += dyn->insts[ninst].v.stack_push; // adjust Stack depth: add push'd ST (going forward)
+        if ((dyn->insts[ninst].v.combined1 || dyn->insts[ninst].v.combined2) && dyn->insts[ninst].v.swapped) {
+            if (a == dyn->insts[ninst].v.combined1)
+                a = dyn->insts[ninst].v.combined2;
+            else if (a == dyn->insts[ninst].v.combined2)
+                a = dyn->insts[ninst].v.combined1;
+        }
+        int i = vmxcache_get_st_f_i64_noback(dyn, ninst, a);
+        if (i < 0) return;
+        dyn->insts[ninst].v.vmxcache[i].t = VMX_CACHE_ST_D;
+        if (dyn->insts[ninst].x87precision) dyn->need_x87check = 2;
+        // check combined propagation too
+        if ((dyn->insts[ninst].v.combined1 || dyn->insts[ninst].v.combined2) && !dyn->insts[ninst].v.swapped) {
+            vmxcache_promote_double_combined(dyn, ninst, maxinst, a);
+        }
+        a -= dyn->insts[ninst].v.stack_pop; // adjust Stack depth: remove pop'd ST (going forward)
+        if (dyn->insts[ninst].x64.has_next && !dyn->insts[ninst].v.barrier)
+            ++ninst;
+        else
+            ninst = -1;
+    }
+    if (ninst == maxinst)
+        vmxcache_promote_double(dyn, ninst, a);
+}
+
+void vmxcache_promote_double(dynarec_ppc64le_t* dyn, int ninst, int a)
+{
+    int i = vmxcache_get_current_st_f_i64(dyn, a);
+    if (i < 0) return;
+    dyn->v.vmxcache[i].t = VMX_CACHE_ST_D;
+    dyn->insts[ninst].v.vmxcache[i].t = VMX_CACHE_ST_D;
+    if (dyn->insts[ninst].x87precision) dyn->need_x87check = 2;
+    // check combined propagation too
+    if (dyn->v.combined1 || dyn->v.combined2) {
+        if (dyn->v.swapped) {
+            if (dyn->v.combined1 == a)
+                a = dyn->v.combined2;
+            else if (dyn->v.combined2 == a)
+                a = dyn->v.combined1;
+        } else {
+            if (dyn->v.combined1 == a)
+                vmxcache_promote_double(dyn, ninst, dyn->v.combined2);
+            else if (dyn->v.combined2 == a)
+                vmxcache_promote_double(dyn, ninst, dyn->v.combined1);
+        }
+    }
+    a -= dyn->insts[ninst].v.stack_push; // adjust Stack depth: remove push'd ST (going backward)
+    if (!ninst || a < 0) return;
+    vmxcache_promote_double_internal(dyn, ninst - 1, ninst, a);
 }
 
 int vmxcache_combine_st(dynarec_ppc64le_t* dyn, int ninst, int a, int b)
 {
-    // TODO
-    (void)dyn; (void)ninst; (void)a; (void)b;
+    dyn->v.combined1 = a;
+    dyn->v.combined2 = b;
+    if (vmxcache_get_current_st(dyn, ninst, a) == VMX_CACHE_ST_F
+        && vmxcache_get_current_st(dyn, ninst, b) == VMX_CACHE_ST_F)
+        return VMX_CACHE_ST_F;
     return VMX_CACHE_ST_D;
+}
+
+static int isCacheEmpty(dynarec_native_t* dyn, int ninst)
+{
+    if (dyn->insts[ninst].v.stack_next) {
+        return 0;
+    }
+    for (int i = 0; i < 24; ++i)
+        if (dyn->insts[ninst].v.vmxcache[i].v) { // there is something at ninst for i
+            if (!(
+                    (dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_F
+                        || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_D
+                        || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_I64)
+                    && dyn->insts[ninst].v.vmxcache[i].n < dyn->insts[ninst].v.stack_pop))
+                return 0;
+        }
+    return 1;
 }
 
 int fpuCacheNeedsTransform(dynarec_ppc64le_t* dyn, int ninst)
 {
-    // TODO
-    (void)dyn; (void)ninst;
-    return 1;
+    int i2 = dyn->insts[ninst].x64.jmp_insts;
+    if (i2 < 0)
+        return 1;
+    if ((dyn->insts[i2].x64.barrier & BARRIER_FLOAT))
+        // if the barrier has already been applied, no transform needed
+        return ((dyn->insts[ninst].x64.barrier & BARRIER_FLOAT)) ? 0 : (isCacheEmpty(dyn, ninst) ? 0 : 1);
+    int ret = 0;
+    if (!i2) { // just purge
+        if (dyn->insts[ninst].v.stack_next) {
+            return 1;
+        }
+        for (int i = 0; i < 24 && !ret; ++i)
+            if (dyn->insts[ninst].v.vmxcache[i].v) { // there is something at ninst for i
+                if (!(
+                        (dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_F
+                            || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_D
+                            || dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_ST_I64)
+                        && dyn->insts[ninst].v.vmxcache[i].n < dyn->insts[ninst].v.stack_pop))
+                    ret = 1;
+            }
+        return ret;
+    }
+    // Check if ninst can be compatible to i2
+    if (dyn->insts[ninst].v.stack_next != dyn->insts[i2].v.stack - dyn->insts[i2].v.stack_push) {
+        return 1;
+    }
+    vmxcache_t cache_i2 = dyn->insts[i2].v;
+    vmxcacheUnwind(&cache_i2);
+
+    for (int i = 0; i < 24; ++i) {
+        if (dyn->insts[ninst].v.vmxcache[i].v) { // there is something at ninst for i
+            if (!cache_i2.vmxcache[i].v) {       // but there is nothing at i2 for i
+                ret = 1;
+            } else if (dyn->insts[ninst].v.vmxcache[i].v != cache_i2.vmxcache[i].v) { // there is something different
+                if (dyn->insts[ninst].v.vmxcache[i].n != cache_i2.vmxcache[i].n) {    // not the same x64 reg
+                    ret = 1;
+                } else if (dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_XMMR && cache_i2.vmxcache[i].t == VMX_CACHE_XMMW) { /* nothing */
+                } else if (dyn->insts[ninst].v.vmxcache[i].t == VMX_CACHE_YMMR && cache_i2.vmxcache[i].t == VMX_CACHE_YMMW) { /* nothing */
+                } else
+                    ret = 1;
+            }
+        } else if (cache_i2.vmxcache[i].v)
+            ret = 1;
+    }
+    return ret;
 }
 
 void vmxcacheUnwind(vmxcache_t* cache)
@@ -112,12 +423,14 @@ void vmxcacheUnwind(vmxcache_t* cache)
         cache->combined1 = cache->combined2 = 0;
     }
     if (cache->news) {
+        // remove the newly created vmxcache
         for (int i = 0; i < 24; ++i)
             if (cache->news & (1 << i))
                 cache->vmxcache[i].v = 0;
         cache->news = 0;
     }
     if (cache->stack_push) {
+        // unpush
         for (int j = 0; j < 24; ++j) {
             if ((cache->vmxcache[j].t == VMX_CACHE_ST_D || cache->vmxcache[j].t == VMX_CACHE_ST_F || cache->vmxcache[j].t == VMX_CACHE_ST_I64)) {
                 if (cache->vmxcache[j].n < cache->stack_push)
@@ -146,7 +459,7 @@ void vmxcacheUnwind(vmxcache_t* cache)
     }
     cache->stack_pop = 0;
     cache->barrier = 0;
-    // Rebuild the x87cache info with vmxcache
+    // And now, rebuild the x87cache info with vmxcache
     cache->mmxcount = 0;
     cache->fpu_scratch = 0;
     for (int i = 0; i < 8; ++i) {
@@ -214,6 +527,7 @@ const char* getCacheName(int t, int n)
 }
 
 // PPC64LE register mapping for debug output
+// x86 regs are mapped to PPC64LE callee-saved GPRs r14-r29
 static register_mapping_t register_mappings[] = {
     { "rax", "r14" },
     { "eax", "r14" },
@@ -287,6 +601,7 @@ static register_mapping_t register_mappings[] = {
 };
 
 // PPC64LE VMX register names for debug output
+// vr0-vr31 (= vs32-vs63)
 static const char* Vt[] = { "vr0", "vr1", "vr2", "vr3", "vr4", "vr5", "vr6", "vr7", "vr8", "vr9", "vr10", "vr11", "vr12", "vr13", "vr14", "vr15", "vr16", "vr17", "vr18", "vr19", "vr20", "vr21", "vr22", "vr23", "vr24", "vr25", "vr26", "vr27", "vr28", "vr29", "vr30", "vr31" };
 
 static const char* df_status[] = { "unknown", "set", "none_pending", "none" };
@@ -355,7 +670,7 @@ void inst_name_pass3(dynarec_native_t* dyn, int ninst, const char* name, rex_t r
     if (BOX64ENV(dynarec_gdbjit)) {
         static char buf2[512];
         if (BOX64ENV(dynarec_gdbjit) > 1) {
-            snprintf(buf2, sizeof(buf2), "; %d: %d opcodes, %s", ninst, dyn->insts[ninst].size / 4, buf);
+            sprintf(buf2, "; %d: %d opcodes, %s", ninst, dyn->insts[ninst].size / 4, buf);
             dyn->gdbjit_block = GdbJITBlockAddLine(dyn->gdbjit_block, (dyn->native_start + dyn->insts[ninst].address), buf2);
         }
         zydis_dec_t* dec = rex.is32bits ? my_context->dec32 : my_context->dec;
@@ -378,8 +693,6 @@ void print_opcode(dynarec_native_t* dyn, int ninst, uint32_t opcode)
     dynarec_log_prefix(0, LOG_NONE, "\t%08x\t%s\n", opcode, ppc64le_print(opcode, (uintptr_t)dyn->block));
 }
 
-// ---- FPU reset functions ----
-
 static void x87_reset(vmxcache_t* v)
 {
     for (int i = 0; i < 8; ++i)
@@ -395,6 +708,7 @@ static void x87_reset(vmxcache_t* v)
     v->barrier = 0;
     v->pushed = 0;
     v->poped = 0;
+
     for (int i = 0; i < 24; ++i)
         if (v->vmxcache[i].t == VMX_CACHE_ST_F
             || v->vmxcache[i].t == VMX_CACHE_ST_D
@@ -414,7 +728,6 @@ static void sse_reset(vmxcache_t* v)
     for (int i = 0; i < 16; ++i)
         v->ssecache[i].v = -1;
 }
-
 static void avx_reset(vmxcache_t* v)
 {
     for (int i = 0; i < 16; ++i)
@@ -430,8 +743,15 @@ void fpu_reset(dynarec_ppc64le_t* dyn)
     fpu_reset_reg(dyn);
 }
 
+int fpu_is_st_freed(dynarec_ppc64le_t* dyn, int ninst, int st)
+{
+    return (dyn->v.tags & (0b11 << (st * 2))) ? 1 : 0;
+}
+
+
 void fpu_reset_ninst(dynarec_ppc64le_t* dyn, int ninst)
 {
+    // TODO: x87 and mmx
     sse_reset(&dyn->insts[ninst].v);
     avx_reset(&dyn->insts[ninst].v);
     fpu_reset_reg_vmxcache(&dyn->insts[ninst].v);
@@ -442,13 +762,10 @@ void fpu_save_and_unwind(dynarec_ppc64le_t* dyn, int ninst, vmxcache_t* cache)
     memcpy(cache, &dyn->insts[ninst].v, sizeof(vmxcache_t));
     vmxcacheUnwind(&dyn->insts[ninst].v);
 }
-
 void fpu_unwind_restore(dynarec_ppc64le_t* dyn, int ninst, vmxcache_t* cache)
 {
     memcpy(&dyn->insts[ninst].v, cache, sizeof(vmxcache_t));
 }
-
-// ---- Native flags and scratch ----
 
 void updateNativeFlags(dynarec_ppc64le_t* dyn)
 {
@@ -464,6 +781,9 @@ void updateNativeFlags(dynarec_ppc64le_t* dyn)
                         dyn->insts[j].nat_flags_fusion = 1;
                         if (dyn->insts[i].x64.use_flags & X_SF) {
                             dyn->insts[j].nat_flags_needsign = 1;
+                        }
+                        if (dyn->insts[i].x64.use_flags & X_CF) {
+                            dyn->insts[j].nat_flags_needcarry = 1;
                         }
                         dyn->insts[i].x64.use_flags = 0;
                         dyn->insts[j].nat_next_inst = i;
@@ -499,10 +819,401 @@ void get_free_scratch(dynarec_ppc64le_t* dyn, int ninst, uint8_t* tmp1, uint8_t*
     *tmp3 = tmp[2];
 }
 
-// ---- Stubs for pass0 analysis functions ----
+void tryEarlyFpuBarrier(dynarec_ppc64le_t* dyn, int last_fpu_used, int ninst)
+{
+    // there is a barrier at ninst
+    // check if, up to last fpu_used, if there is some suspicious jump that would prevent the barrier to be put earlier
+    int usefull = 0;
+    for (int i = ninst - 1; i > last_fpu_used; --i) {
+        if (!dyn->insts[i].x64.has_next)
+            return; // break of chain, don't try to be smart for now
+        if (dyn->insts[i].x64.barrier & BARRIER_FLOAT)
+            return; // already done?
+        if (dyn->insts[i].x64.jmp && dyn->insts[i].x64.jmp_insts == -1)
+            usefull = 1;
+        if (dyn->insts[i].x64.jmp && dyn->insts[i].x64.jmp_insts != -1) {
+            int i2 = dyn->insts[i].x64.jmp_insts;
+            if (i2 < last_fpu_used || i2 > ninst) {
+                // check if some xmm/ymm/x87 stack are used in landing point
+                if (i2 > ninst) {
+                    if (dyn->insts[i2].v.xmm_used || dyn->insts[i2].v.ymm_used || dyn->insts[i2].v.stack)
+                        return;
+                }
+                // we will stop there, not trying to guess too much thing
+                if ((usefull && (i + 1) != ninst)) {
+                    if (BOX64ENV(dynarec_dump) || BOX64ENV(dynarec_log) > 1) dynarec_log(LOG_NONE, "Putting early Float Barrier in %d for %d\n", i + 1, ninst);
+                    dyn->insts[i + 1].x64.barrier |= BARRIER_FLOAT;
+                }
+                return;
+            }
+            usefull = 1;
+        }
+        for (int pred = 0; pred < dyn->insts[i].pred_sz; ++pred) {
+            if (dyn->insts[i].pred[pred] <= last_fpu_used) {
+                if (usefull && ((i + 1) != ninst)) {
+                    if (BOX64ENV(dynarec_dump) || BOX64ENV(dynarec_log) > 1) dynarec_log(LOG_NONE, "Putting early Float Barrier in %d for %d\n", i + 1, ninst);
+                    dyn->insts[i + 1].x64.barrier |= BARRIER_FLOAT;
+                }
+                return;
+            }
+        }
+        if (dyn->insts[i].pred_sz > 1)
+            usefull = 1;
+    }
+    if (usefull) {
+        if (BOX64ENV(dynarec_dump) || BOX64ENV(dynarec_log) > 1) dynarec_log(LOG_NONE, "Putting early Float Barrier in %d for %d\n", last_fpu_used, ninst);
+        dyn->insts[last_fpu_used + 1].x64.barrier |= BARRIER_FLOAT;
+    }
+}
 
 void propagateFpuBarrier(dynarec_ppc64le_t* dyn)
 {
-    // TODO
-    (void)dyn;
+    if (!dyn->use_x87)
+        return;
+    int last_fpu_used = -1;
+    for (int ninst = 0; ninst < dyn->size; ++ninst) {
+        int fpu_used = dyn->insts[ninst].v.xmm_used || dyn->insts[ninst].v.ymm_used || dyn->insts[ninst].mmx_used || dyn->insts[ninst].x87_used;
+        if (fpu_used) last_fpu_used = ninst;
+        dyn->insts[ninst].fpu_used = fpu_used;
+        if (dyn->insts[ninst].fpupurge && (last_fpu_used != -1) && (last_fpu_used != (ninst - 1))) {
+            tryEarlyFpuBarrier(dyn, last_fpu_used, ninst);
+            last_fpu_used = -1; // reset the last_fpu_used...
+        }
+    }
+}
+
+void updateYmm0s(dynarec_ppc64le_t* dyn, int ninst, int max_ninst_reached)
+{
+    if (!dyn->use_ymm)
+        return;
+    int can_incr = ninst == max_ninst_reached; // Are we the top-level call?
+    int ok = 1;
+    while ((can_incr || ok) && ninst < dyn->size) {
+        uint16_t new_purge_ymm, new_ymm0_in, new_ymm0_out;
+
+        if (dyn->insts[ninst].pred_sz && dyn->insts[ninst].x64.alive) {
+            uint16_t ymm0_union = 0;
+            uint16_t ymm0_inter = (ninst && !(dyn->insts[ninst].x64.barrier & BARRIER_FLOAT)) ? ((uint16_t)-1) : (uint16_t)0;
+            for (int i = 0; i < dyn->insts[ninst].pred_sz; ++i) {
+                int pred = dyn->insts[ninst].pred[i];
+                if (pred >= max_ninst_reached) {
+                    continue;
+                }
+
+                int pred_out = dyn->insts[pred].x64.has_callret ? 0 : dyn->insts[pred].ymm0_out;
+                ymm0_union |= pred_out;
+                ymm0_inter &= pred_out;
+            }
+            new_purge_ymm = ymm0_union & ~ymm0_inter;
+            new_ymm0_in = ymm0_inter;
+            new_ymm0_out = (ymm0_inter | dyn->insts[ninst].ymm0_add) & ~dyn->insts[ninst].ymm0_sub;
+
+            if ((dyn->insts[ninst].purge_ymm != new_purge_ymm) || (dyn->insts[ninst].ymm0_in != new_ymm0_in) || (dyn->insts[ninst].ymm0_out != new_ymm0_out)) {
+                dyn->insts[ninst].purge_ymm = new_purge_ymm;
+                dyn->insts[ninst].ymm0_in = new_ymm0_in;
+                dyn->insts[ninst].ymm0_out = new_ymm0_out;
+
+                if (can_incr) {
+                    ++max_ninst_reached;
+                } else {
+                    ok = (max_ninst_reached - 1 != ninst) && dyn->insts[ninst].x64.has_next && !dyn->insts[ninst].x64.has_callret;
+                }
+
+                int jmp = (dyn->insts[ninst].x64.jmp) ? dyn->insts[ninst].x64.jmp_insts : -1;
+                if ((jmp != -1) && (jmp < max_ninst_reached)) {
+                    updateYmm0s(dyn, jmp, max_ninst_reached);
+                }
+            } else {
+                if (can_incr) {
+                    ++max_ninst_reached;
+
+                    int jmp = (dyn->insts[ninst].x64.jmp) ? dyn->insts[ninst].x64.jmp_insts : -1;
+                    if ((jmp != -1) && (jmp < max_ninst_reached)) {
+                        updateYmm0s(dyn, jmp, max_ninst_reached);
+                    }
+                } else {
+                    ok = 0;
+                }
+            }
+        } else if (can_incr) {
+            ++max_ninst_reached;
+        } else {
+            ok = 0;
+        }
+        ++ninst;
+    }
+}
+
+// The callret shadow stack (pairs {native return address, x86 return address} that CALL pushes
+// on the native stack) is about to be discarded: native_epilog, or a RET whose return address
+// did not match. A CALL leaves its block "in use" (doEnterBlock without doLeaveBlock) so that the
+// callee can safely return into it; release those blocks now, otherwise they stay in the orphan
+// list forever (with a JIT-heavy guest on 64K pages that was 100k+ blocks and a 20% CPU walk).
+void ppc64le_shadow_purge(x64emu_t* emu, uintptr_t sp)
+{
+    if (BOX64ENV(dynarec_callret) < 3) return;
+    uintptr_t top = emu->xSPSave;
+    for (uintptr_t p = sp; p + 2 * sizeof(uintptr_t) <= top; p += 2 * sizeof(uintptr_t)) {
+        dynablock_t* db = FindDynablockFromNativeAddress(*(void**)p);
+        if (!db) break; // not a shadow entry (a C frame was below): nothing more to release
+        ppc64le_inuse_leave(emu, db);
+    }
+}
+
+// ---- upper-32 tracking -------------------------------------------------------
+// In 32-bit mode every result has to be zero-extended (clrldi) so that the register
+// holds a clean 64-bit value, but most results are only ever consumed by other 32-bit
+// operations. An instruction that marked itself UP32_AGNOSTIC() declares the GPRs whose
+// upper bits it really reads (up32_read: 64-bit sources, address registers) and the GPRs
+// it writes (up32_write32/64). A backward liveness pass finds the 32-bit writes whose upper
+// bits are never observed before the register is rewritten (up32_skip), and a forward pass
+// computes the registers with stale upper bits at entry of each instruction (up32_pending),
+// used by adjust_arch to clean them when a signal interrupts the block.
+// Instructions that did not opt in are assumed to read every upper half, so they never see a
+// stale register: a skip only happens when the next observer of the register is an opted-in
+// 64-bit write. The stack pointer is never skipped (it is used as a native address).
+static int hasLinearPredecessor(const dynarec_ppc64le_t* dyn, int ninst)
+{
+    return ninst > 0 && dyn->insts[ninst].pred_sz == 1 && dyn->insts[ninst].pred[0] == ninst - 1;
+}
+
+int isUpper32Zero(dynarec_ppc64le_t* dyn, int ninst, int reg)
+{
+    if (!IS_GPR(reg))
+        return 0;
+    const uint16_t bit = (uint16_t)(1 << TO_X64(reg));
+    int current = ninst;
+    for (int depth = 0; depth < 4 && hasLinearPredecessor(dyn, current); ++depth) {
+        const instruction_ppc64le_t* prev = &dyn->insts[current - 1];
+        if (prev->x64.has_callret || prev->x64.barrier)
+            return 0;
+        if (prev->up32_write64 & bit) return prev->up32_zero & bit;
+        --current;
+    }
+    return 0;
+}
+
+#define UP32_READS(inst) ((inst)->up32_agnostic ? (inst)->up32_read : (uint16_t)0xFFFF)
+
+void updateUpperLiveness(dynarec_ppc64le_t* dyn)
+{
+    int n = dyn->size;
+    if (n <= 0)
+        return;
+    if (!BOX64ENV(dynarec_ppc64le_up32)) {
+        for (int i = 0; i < n; ++i) {
+            dyn->insts[i].up32_skip = 0;
+            dyn->insts[i].up32_pending = 0;
+        }
+        return;
+    }
+
+    size_t live_size = (size_t)n * sizeof(uint16_t);
+    size_t work_size = (size_t)n * sizeof(int);
+    size_t list_size = (size_t)n * sizeof(uint8_t);
+    void* buffer = calloc(1, 3 * live_size + work_size + list_size);
+    if (!buffer)
+        return;
+    uint16_t* live_in = (uint16_t*)buffer;
+    uint16_t* live_out = (uint16_t*)((char*)live_in + live_size);
+    uint16_t* pending_in = (uint16_t*)((char*)live_out + live_size);
+    int* work = (int*)((char*)pending_in + live_size);
+    uint8_t* on_list = (uint8_t*)((char*)work + work_size);
+
+    int sp = 0;
+    for (int i = n - 1; i >= 0; --i) {
+        if (dyn->insts[i].x64.alive) {
+            work[sp++] = i;
+            on_list[i] = 1;
+        }
+    }
+    // backward analysis: which upper halves are live after each instruction
+    while (sp > 0) {
+        int i = work[--sp];
+        on_list[i] = 0;
+        const instruction_ppc64le_t* inst = &dyn->insts[i];
+        if (!inst->x64.alive)
+            continue;
+        uint16_t combined_out = 0;
+        if (inst->x64.has_next && i + 1 < n && dyn->insts[i + 1].x64.alive)
+            combined_out |= live_in[i + 1];
+        if (inst->x64.jmp) {
+            if (inst->x64.jmp_insts >= 0 && inst->x64.jmp_insts < n)
+                combined_out |= live_in[inst->x64.jmp_insts];
+            else
+                combined_out = UINT16_MAX;
+        }
+        int has_internal_jump = inst->x64.jmp && inst->x64.jmp_insts >= 0 && inst->x64.jmp_insts < n;
+        if ((inst->x64.has_next && i == n - 1) || (!inst->x64.has_next && !has_internal_jump))
+            combined_out = UINT16_MAX; // leaving the block: everything must be clean
+        combined_out |= (uint16_t)(1 << _SP);
+        live_out[i] = combined_out;
+
+        uint16_t live_in_val = UP32_READS(inst) | (combined_out & (uint16_t)~inst->up32_write64);
+        if (live_in_val != live_in[i]) {
+            live_in[i] = live_in_val;
+            for (int p = 0; p < inst->pred_sz; ++p) {
+                int j = inst->pred[p];
+                if (!on_list[j]) {
+                    work[sp++] = j;
+                    on_list[j] = 1;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < n; ++i) {
+        instruction_ppc64le_t* inst = &dyn->insts[i];
+        inst->up32_skip = inst->up32_agnostic ? (inst->up32_write32 & (uint16_t)~live_out[i]) : 0;
+    }
+
+    memset(on_list, 0, list_size);
+    sp = 0;
+    for (int i = 0; i < n; ++i) {
+        if (dyn->insts[i].x64.alive) {
+            work[sp++] = i;
+            on_list[i] = 1;
+        }
+    }
+    // forward analysis: which upper halves are stale at entry
+    while (sp > 0) {
+        int i = work[--sp];
+        on_list[i] = 0;
+        instruction_ppc64le_t* inst = &dyn->insts[i];
+        if (!inst->x64.alive)
+            continue;
+        uint16_t merged_pending = 0;
+        for (int p = 0; p < inst->pred_sz; ++p) {
+            int j = inst->pred[p];
+            const instruction_ppc64le_t* pred = &dyn->insts[j];
+            merged_pending |= (pending_in[j] & (uint16_t)~pred->up32_write64) | pred->up32_skip;
+        }
+        if (merged_pending != pending_in[i]) {
+            pending_in[i] = merged_pending;
+            if (inst->x64.has_next && i + 1 < n && dyn->insts[i + 1].x64.alive && !on_list[i + 1]) {
+                work[sp++] = i + 1;
+                on_list[i + 1] = 1;
+            }
+            if (inst->x64.jmp && inst->x64.jmp_insts >= 0 && inst->x64.jmp_insts < n) {
+                int j = inst->x64.jmp_insts;
+                if (dyn->insts[j].x64.alive && !on_list[j]) {
+                    work[sp++] = j;
+                    on_list[j] = 1;
+                }
+            }
+        }
+    }
+    for (int i = 0; i < n; ++i)
+        dyn->insts[i].up32_pending = pending_in[i];
+
+    free(buffer);
+}
+
+// in_used (enter/leave) keeps a block alive while it can still be returned into: only a block with a
+// call site can be the target of a pending return (callret shadow stack). A block without one is
+// executed straight through; its deferred free (zombie queue) is what protects it, as before in_used
+// existed. Counting every block costs two atomic read-modify-writes (lwarx/stwcx.) per execution,
+// which dominated call-heavy JIT code. BOX64_DYNAREC_INUSE_ALL=1 restores counting every block.
+void updateInUseTracking(dynarec_ppc64le_t* dyn)
+{
+    dyn->track_inuse = 0;
+    if (BOX64DRENV(dynarec_callret) < 3) return; // no enter/leave emitted: don't allocate a counter either
+    if (BOX64ENV(dynarec_inuse_all)) { dyn->track_inuse = 1; return; }
+    for (int i = 0; i < dyn->size; ++i)
+        if (dyn->insts[i].x64.has_callret) { dyn->track_inuse = 1; return; }
+}
+
+// ---- per-thread dynablock in_used counters -----------------------------------------------------------
+// A block is always entered and left by the same thread (its own exits, a return into it, the signal path,
+// the shadow-stack purge), so each thread keeps private counters, updated with plain loads and stores:
+// an atomic read-modify-write (lwarx/stwcx.) on every enter/leave was 3-4x the cost of the whole call in
+// call-heavy JIT code. On PPC64LE, dynablock_t.in_used holds the block's counter index (0 = untracked);
+// "is the block in use" sums its slot over all threads, which only happens when blocks are freed.
+// The counter arrays are reserved address space, only the touched pages get memory.
+#define INUSE_MAX    (1u << 22)
+#define INUSE_MAXEMU 4096
+static pthread_mutex_t inuse_mutex = PTHREAD_MUTEX_INITIALIZER;
+static uint32_t* inuse_arrays[INUSE_MAXEMU];
+static uint32_t* inuse_free = NULL;
+static uint32_t inuse_free_sz = 0, inuse_free_cap = 0;
+static uint32_t inuse_next = 1;
+_Static_assert(offsetof(x64emu_t, inuse_counts) < 32768, "inuse_counts must be reachable with a 16-bit displacement");
+
+uint32_t* ppc64le_inuse_newthread(void)
+{
+    uint32_t* p = mmap(NULL, INUSE_MAX * sizeof(uint32_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (p == MAP_FAILED) {
+        printf_log(LOG_NONE, "Error: cannot reserve the dynarec in_used counters of a new thread\n");
+        abort();
+    }
+    int slot = -1;
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU && slot < 0; ++i)
+        if (!inuse_arrays[i]) { inuse_arrays[i] = p; slot = i; }
+    pthread_mutex_unlock(&inuse_mutex);
+    if (slot < 0) {
+        // an unregistered thread would be invisible to ppc64le_inuse_count: a block it runs could be freed
+        printf_log(LOG_NONE, "Error: too many threads for the dynarec in_used counters (%d)\n", INUSE_MAXEMU);
+        abort();
+    }
+    return p;
+}
+
+void ppc64le_inuse_freethread(uint32_t* p)
+{
+    if (!p) return;
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU; ++i)
+        if (inuse_arrays[i] == p) inuse_arrays[i] = NULL;
+    pthread_mutex_unlock(&inuse_mutex);
+    munmap(p, INUSE_MAX * sizeof(uint32_t));
+}
+
+uint32_t ppc64le_inuse_alloc(void)
+{
+    uint32_t idx = 0;
+    pthread_mutex_lock(&inuse_mutex);
+    if (inuse_free_sz)
+        idx = inuse_free[--inuse_free_sz];
+    else if (inuse_next < INUSE_MAX)
+        idx = inuse_next++;
+    pthread_mutex_unlock(&inuse_mutex);
+    return idx; // 0 if exhausted: the block is then not tracked (slot 0 is a dummy)
+}
+
+int ppc64le_inuse_count(dynablock_t* db)
+{
+    uint32_t idx = db ? db->in_used : 0;
+    if (!idx || idx >= INUSE_MAX) return 0;
+    int sum = 0;
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU; ++i)
+        if (inuse_arrays[i]) sum += (int)__atomic_load_n(&inuse_arrays[i][idx], __ATOMIC_RELAXED);
+    pthread_mutex_unlock(&inuse_mutex);
+    return sum;
+}
+
+void ppc64le_inuse_leave(x64emu_t* emu, dynablock_t* db)
+{
+    uint32_t idx = db ? db->in_used : 0;
+    if (!idx || idx >= INUSE_MAX || !emu || !emu->inuse_counts) return;
+    --emu->inuse_counts[idx];
+}
+
+void ppc64le_inuse_release(dynablock_t* db)
+{
+    uint32_t idx = db ? db->in_used : 0;
+    if (!idx || idx >= INUSE_MAX) return;
+    pthread_mutex_lock(&inuse_mutex);
+    for (int i = 0; i < INUSE_MAXEMU; ++i)
+        if (inuse_arrays[i]) inuse_arrays[i][idx] = 0;
+    if (inuse_free_sz == inuse_free_cap) {
+        uint32_t ncap = inuse_free_cap ? inuse_free_cap * 2 : 1024;
+        uint32_t* n = box_realloc(inuse_free, ncap * sizeof(uint32_t));
+        if (n) { inuse_free = n; inuse_free_cap = ncap; }
+    }
+    if (inuse_free_sz < inuse_free_cap)
+        inuse_free[inuse_free_sz++] = idx;
+    pthread_mutex_unlock(&inuse_mutex);
+    db->in_used = 0;
 }

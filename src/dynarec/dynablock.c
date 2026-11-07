@@ -21,6 +21,7 @@
 
 #include "dynarec_native.h"
 #include "dynarec_arch.h"
+#include "threads.h"
 #include "native_lock.h"
 
 #include "custommem.h"
@@ -113,11 +114,23 @@ dynablock_t* InvalidDynablock(dynablock_t* db, int need_lock)
 
 static void QueueZombieDynablock(dynablock_t* db);
 
+// dynablock in_used: a shared atomic counter, or per-thread counters on PPC64LE (in_used is then an index)
+#ifdef PPC64LE
+int  ppc64le_inuse_count(dynablock_t* db);
+void ppc64le_inuse_leave(x64emu_t* emu, dynablock_t* db);
+void ppc64le_inuse_release(dynablock_t* db);
+#define DB_INUSE(db)         ppc64le_inuse_count(db)
+#define DB_INUSE_RELEASE(db) ppc64le_inuse_release(db)
+#else
+#define DB_INUSE(db)         native_lock_get_d(&(db)->in_used)
+#define DB_INUSE_RELEASE(db) do { } while (0)
+#endif
+
 static void RetireOrphanDynablocks(void)
 {
     for (int i = 0; i < my_context->db_orphan_count; ) {
         dynablock_t* db = my_context->db_orphan[i];
-        if (db && native_lock_get_d(&db->in_used) > 0) {
+        if (db && DB_INUSE(db) > 0) {
             ++i;
             continue;
         }
@@ -156,7 +169,7 @@ static void QueueZombieDynablock(dynablock_t* db)
             dynablock_t* z = my_context->db_zombie[slot];
             if (!z)
                 continue;
-            int cnt = native_lock_get_d(&z->in_used);
+            int cnt = DB_INUSE(z);
             if (cnt <= 0) {
                 idx = i;
                 idx_in_used = cnt;
@@ -174,8 +187,10 @@ static void QueueZombieDynablock(dynablock_t* db)
         if (idx_in_used > 0) {
             printf_log(LOG_DEBUG, "Warning, all %d queued dynablocks are still in use, deferring the oldest one (in_used=%d)\n", DB_ZOMBIE_SIZE, idx_in_used);
             QueueOrphanDynablock(my_context->db_zombie[slot]);
-        } else if (my_context->db_zombie[slot])
+        } else if (my_context->db_zombie[slot]) {
+            DB_INUSE_RELEASE(my_context->db_zombie[slot]);
             FreeDynarecMap((uintptr_t)my_context->db_zombie[slot]->actual_block);
+        }
         // shift all newer entries over the dropped one, then queue db at the tail
         for (int i = idx; i < DB_ZOMBIE_SIZE - 1; ++i) {
             int cur = (my_context->db_zombie_head - DB_ZOMBIE_SIZE + i + DB_ZOMBIE_SIZE) % DB_ZOMBIE_SIZE;
@@ -337,7 +352,11 @@ void dynablock_leave_runtime(dynablock_t* db)
     if(!db) return;
 #ifdef HAVE_IN_USED
     if(BOX64ENV(dynarec_callret) < 3) return;
+    #ifdef PPC64LE
+    ppc64le_inuse_leave(thread_get_emu(), db);
+    #else
     __atomic_fetch_sub(&db->in_used, 1, __ATOMIC_ACQ_REL);
+    #endif
 #endif
 }
 
@@ -400,7 +419,7 @@ dynablock_t* internalDBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int n
         block = NULL;
     }
     if(block || !create) {
-        if(block && getNeedTest(addr) && (getProtection(block->x64_readaddr)&req_prot)!=req_prot)
+        if(block && getNeedTest(addr) && (getProtection_cached(block->x64_readaddr)&req_prot)!=req_prot)
             block = NULL;
         return block;
     }
@@ -483,8 +502,10 @@ void FlushZombieDynablocks(void)
     if (!my_context) return;
     if (my_context->db_orphan_count) {
         for (int i = 0; i < my_context->db_orphan_count; ++i)
-            if (my_context->db_orphan[i] && native_lock_get_d(&my_context->db_orphan[i]->in_used) <= 0)
+            if (my_context->db_orphan[i] && DB_INUSE(my_context->db_orphan[i]) <= 0) {
+                DB_INUSE_RELEASE(my_context->db_orphan[i]);
                 FreeDynarecMap((uintptr_t)my_context->db_orphan[i]->actual_block);
+            }
         box_free(my_context->db_orphan);
         my_context->db_orphan = NULL;
         my_context->db_orphan_size = 0;
@@ -494,8 +515,10 @@ void FlushZombieDynablocks(void)
     int head = my_context->db_zombie_head;
     for (int i = 0; i < my_context->db_zombie_count; ++i) {
         int idx = (head - my_context->db_zombie_count + i + DB_ZOMBIE_SIZE) % DB_ZOMBIE_SIZE;
-        if (my_context->db_zombie[idx] && native_lock_get_d(&my_context->db_zombie[idx]->in_used) <= 0)
+        if (my_context->db_zombie[idx] && DB_INUSE(my_context->db_zombie[idx]) <= 0) {
+            DB_INUSE_RELEASE(my_context->db_zombie[idx]);
             FreeDynarecMap((uintptr_t)my_context->db_zombie[idx]->actual_block);
+        }
     }
     my_context->db_zombie_count = 0;
 }
@@ -526,6 +549,10 @@ dynablock_t* DBGetBlock(x64emu_t* emu, uintptr_t addr, int create, int is32bits)
     if(db && db->done && db->block && getNeedTest(addr)) {
         //if (db->always_test) SchedYield(); // just calm down...
         uint32_t hash = X31_hash_code((void*)db->x64_readaddr, db->x64_size);
+        // NEVERCLEAN block, unchanged and not in a hotpage: there is nothing to update,
+        // so don't take the lock (the hash check itself is already done outside of it)
+        if(hash==db->hash && db->always_test==1 && !is_inhotpage)
+            return db;
         mutex_lock(&my_context->mutex_dyndump)?1:0;
         if(hash!=db->hash) {
             if (is_inhotpage) {

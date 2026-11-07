@@ -120,7 +120,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
     ARCH_INIT();
     int reset_n = -1; // -1 no reset; -2 reset to 0; else reset to the state of reset_n
     dyn->last_ip = (alternate || (dyn->insts && dyn->insts[0].pred_sz)) ? 0 : ip; // RIP is always set at start of block unless there is a predecessor!
-    int stopblock = 2 + !dyn->is_file_mapped;                          // if block is in elf memory or file mapped memory, it can be extended with BOX64DRENV(dynarec_bigblock)==2, else it needs 3
+    int stopblock = 2 + !dyn->is_file_mapped;                          // if block is in elf memory or file mapped memory, it can be extended with BOX64DRBIGBLOCK()==2, else it needs 3
     // ok, go now
     INIT;
     #if STEP == 0
@@ -186,6 +186,12 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                 doEnterBlock(dyn, 0, x1, x2, x3);
             if (dyn->insts[0].preload_xmmymm)
                 doPreload(dyn, 0);
+            ENDPREFIX;
+        }
+        #elif defined(PPC64LE)
+        if(!ninst) {
+            if (BOX64DRENV(dynarec_callret) >= 3)
+                doEnterBlock(dyn, 0, x1, x2, x3);
             ENDPREFIX;
         }
         #endif
@@ -264,7 +270,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
             MESSAGE(LOG_DUMP, "TEST STEP ----\n");
             extcache_native_t save;
             fpu_save_and_unwind(dyn, ninst, &save);
-            #if defined(LA64) || defined(RV64)
+            #if defined(LA64) || defined(RV64) || defined(PPC64LE)
             UP32_READALL();
             #endif
             fpu_reflectcache(dyn, ninst, x1, x2, x3);
@@ -281,7 +287,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                 #if defined (SPILL_NF_REGISTERS)
                 if (BOX64ENV(dynarec_nativeflags)) SPILL_NF_REGISTERS;
                 #endif
-                #if defined(LA64) || defined(RV64)
+                #if defined(LA64) || defined(RV64) || defined(PPC64LE)
                 UP32_READALL();
                 #endif
                 fpu_reflectcache(dyn, ninst, x1, x2, x3);
@@ -454,7 +460,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                 dyn->forward_ninst = 0;
             }
             // else just continue
-        } else if (!ok && !need_epilog && !dyn->peeking_flags && BOX64DRENV(dynarec_bigblock) && (getProtection(addr + 3) & ~PROT_READ))
+        } else if (!ok && !need_epilog && !dyn->peeking_flags && BOX64DRBIGBLOCK() && (getProtection(addr + 3) & ~PROT_READ))
             if(*(uint32_t*)addr!=0) {   // check if need to continue (but is next 4 bytes are 0, stop)
                 uintptr_t next = get_closest_next(dyn, addr);
                 if(next && (
@@ -469,8 +475,8 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
                         reset_n = get_first_jump_addr(dyn, next);
                     }
                     if (dyn->need_dump) dynarec_log(LOG_NONE, "Extend block %p, %s%p -> %p (ninst=%d, jump from %d)\n", dyn, dyn->insts[ninst].x64.has_callret ? "(opt. call) " : "", (void*)addr, (void*)next, ninst + 1, dyn->insts[ninst].x64.has_callret ? ninst : reset_n);
-                } else if (next && (int)(next - addr) < BOX64ENV(dynarec_forward) && (getProtection(next) & PROT_READ) /*BOX64DRENV(dynarec_bigblock)>=stopblock*/) {
-                    if (!((BOX64DRENV(dynarec_bigblock) < stopblock) && !isJumpTableDefault64((void*)next))) {
+                } else if (next && (int)(next - addr) < BOX64ENV(dynarec_forward) && (getProtection(next) & PROT_READ) /*BOX64DRBIGBLOCK()>=stopblock*/) {
+                    if (!((BOX64DRBIGBLOCK() < stopblock) && !isJumpTableDefault64((void*)next))) {
                         if(dyn->forward) {
                             if(next<dyn->forward_to)
                                 dyn->forward_to = next;
@@ -520,7 +526,7 @@ uintptr_t native_pass(dynarec_native_t* dyn, uintptr_t addr, int alternate, int 
         ++ninst;
         #if STEP == 0
         memset(&dyn->insts[ninst], 0, sizeof(instruction_native_t));
-        if ((ok > 0) && (((BOX64DRENV(dynarec_bigblock) < stopblock) && !isJumpTableDefault64((void*)addr)) || (addr >= BOX64ENV(nodynarec_start) && addr < BOX64ENV(nodynarec_end))))
+        if ((ok > 0) && (((BOX64DRBIGBLOCK() < stopblock) && !isJumpTableDefault64((void*)addr)) || (addr >= BOX64ENV(nodynarec_start) && addr < BOX64ENV(nodynarec_end))))
 #else
         if((ok>0) && (ninst==dyn->size))
         #endif

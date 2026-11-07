@@ -138,8 +138,8 @@
 #define native_lock_write_d(A, B)           ppc64le_lock_write_d(A, B)
 #define native_lock_read_dd(A)              ppc64le_lock_read_dd(A)
 #define native_lock_write_dd(A, B)          ppc64le_lock_write_dd(A, B)
-// PPC64LE (pre-POWER10) lacks 128-bit LL/SC. Use plain reads for read_dq;
-// callers that need true atomicity should use the spinlock (mutex_16b) path.
+// 128-bit atomics: ppc64le_lock_cas_dq (lqarx/stqcx., aligned only); these two are not atomic,
+// unaligned 16-byte CAS uses the mutex_16b spinlock.
 #define native_lock_read_dq(A, B, C)        do { *(A) = ((uint64_t*)(C))[0]; *(B) = ((uint64_t*)(C))[1]; } while(0)
 #define native_lock_write_dq(A, B, C)       0               // not truly atomic; callers must use mutex_16b
 #define native_lock_xchg_dd(A, B)           ppc64le_lock_xchg_dd(A, B)

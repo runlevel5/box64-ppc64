@@ -25,7 +25,14 @@
         dyn->insts[ninst].ymm0_pass3 = dyn->ymm_zero;   \
     }                                                            \
     AREFLAGSNEEDED()
-#define INST_EPILOG
+// An opcode that declared SF_SET_DF left dyn->f at status_set, so the block exit
+// will not write emu->df: it must have written it (or called a C helper) itself.
+#define INST_EPILOG                                                                                           \
+    do {                                                                                                      \
+        if (dyn->insts[ninst].df_claimed && !dyn->insts[ninst].df_written)                                    \
+            printf_log(LOG_NONE, "Warning, PPC64LE dynarec: opcode at %p declared SF_SET_DF without writing emu->df\n", \
+                (void*)dyn->insts[ninst].x64.addr);                                                           \
+    } while (0)
 #define INST_NAME(name) inst_name_pass3(dyn, ninst, name, rex)
 // TABLE64: PPC64LE loads from constant pool using 4 instructions:
 //   bcl 20,31,.+4          (get PC into LR, BO=20 "always", BI=31)

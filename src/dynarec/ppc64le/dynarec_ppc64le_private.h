@@ -11,34 +11,34 @@ typedef struct dynablock_s dynablock_t;
 typedef struct instsize_s instsize_t;
 typedef struct box64env_s box64env_t;
 
-#define BARRIER_MAYBE   8
+#define BARRIER_MAYBE 8
 
 // VMX cache types (mirrors ARM64's NEON cache / LA64's LSX cache)
 // PPC64LE uses VMX (128-bit) registers vr0-vr31 (= vs32-vs63) for SIMD caching
-#define VMX_CACHE_NONE      0
-#define VMX_CACHE_ST_D      1
-#define VMX_CACHE_ST_F      2
-#define VMX_CACHE_ST_I64    3
-#define VMX_CACHE_MM        4
-#define VMX_CACHE_XMMW      5
-#define VMX_CACHE_XMMR      6
-#define VMX_CACHE_YMMW      7
-#define VMX_CACHE_YMMR      8
-#define VMX_CACHE_SCR       9
+#define VMX_CACHE_NONE   0
+#define VMX_CACHE_ST_D   1
+#define VMX_CACHE_ST_F   2
+#define VMX_CACHE_ST_I64 3
+#define VMX_CACHE_MM     4
+#define VMX_CACHE_XMMW   5
+#define VMX_CACHE_XMMR   6
+#define VMX_CACHE_YMMW   7
+#define VMX_CACHE_YMMR   8
+#define VMX_CACHE_SCR    9
 
 typedef union vmx_cache_s {
-    int8_t           v;
+    int8_t v;
     struct {
-        uint8_t t:4;   // reg type
-        uint8_t n:4;   // reg number
+        uint8_t t : 4; // reg type
+        uint8_t n : 4; // reg number
     };
 } vmx_cache_t;
 
 typedef union sse_cache_s {
-    int8_t      v;
+    int8_t v;
     struct {
-        uint8_t reg:7;
-        uint8_t write:1;
+        uint8_t reg : 7;
+        uint8_t write : 1;
     };
 } sse_cache_t;
 
@@ -54,45 +54,45 @@ typedef union avx_cache_s {
 
 typedef struct vmxcache_s {
     // VMX cache
-    vmx_cache_t         vmxcache[32];
-    int8_t              stack;
-    int8_t              stack_next;
-    int8_t              stack_pop;
-    int8_t              stack_push;
-    uint8_t             combined1;
-    uint8_t             combined2;
-    uint8_t             swapped;        // the combined reg were swapped
-    uint8_t             barrier;        // is there a barrier at instruction epilog?
-    uint8_t             pushed;         // positive pushed value (to check for overflow)
-    uint8_t             poped;          // positive poped value (to check for underflow)
-    uint32_t            news;           // bitmask, which vmxcache are new for this opcode
+    vmx_cache_t vmxcache[32];
+    int8_t stack;
+    int8_t stack_next;
+    int8_t stack_pop;
+    int8_t stack_push;
+    uint8_t combined1;
+    uint8_t combined2;
+    uint8_t swapped; // the combined reg were swapped
+    uint8_t barrier; // is there a barrier at instruction epilog?
+    uint8_t pushed;  // positive pushed value (to check for overflow)
+    uint8_t poped;   // positive poped value (to check for underflow)
+    uint32_t news;   // bitmask, which vmxcache are new for this opcode
     // fpu cache
-    int8_t              x87cache[8];    // cache status for the 8 x87 register behind the fpu stack
-    int8_t              x87reg[8];      // reg used for x87cache entry
-    int16_t             tags;           // similar to fpu_tags
-    int8_t              mmxcache[8];    // cache status for the 8 MMX registers
-    sse_cache_t         ssecache[16];   // cache status for the 16 SSE(2) registers
-    avx_cache_t         avxcache[16];   // cache status for the 16 AVX registers
-    int8_t              fpuused[32];    // all vmx regs, used by x87, mmx, sse and avx
-    int8_t              x87stack;       // cache stack counter
-    int8_t              mmxcount;       // number of mmx register used (not both mmx and x87 at the same time)
-    int8_t              fpu_scratch;    // scratch counter
-    uint16_t            xmm_write;      // 1bit of xmmXX removed write
-    uint16_t            xmm_removed;    // 1bit if xmmXX was removed
-    uint16_t            xmm_used;       // mask of the xmm regs used in this opcode
-    uint16_t            ymm_used;       // mask of the ymm regs used in this opcode
-    uint16_t            ymm_write;      // 1bit of ymmXX removed write
-    uint16_t            ymm_removed;    // 1bit if ymmXX was removed
-    uint16_t            xmm_unneeded;   // 1bit for xmmXX were value is not needed
-    uint16_t            ymm_unneeded;   // 1bit for ymmXX were value is not needed
-    uint64_t            ymm_regs;       // 4bits (0-15) position of 16 ymmXX regs removed
+    int8_t x87cache[8];       // cache status for the 8 x87 register behind the fpu stack
+    int8_t x87reg[8];         // reg used for x87cache entry
+    int16_t tags;             // similar to fpu_tags
+    int8_t mmxcache[8];       // cache status for the 8 MMX registers
+    sse_cache_t ssecache[16]; // cache status for the 16 SSE(2) registers
+    avx_cache_t avxcache[16]; // cache status for the 16 AVX registers
+    int8_t fpuused[32];       // all vmx regs, used by x87, mmx, sse and avx
+    int8_t x87stack;          // cache stack counter
+    int8_t mmxcount;          // number of mmx register used (not both mmx and x87 at the same time)
+    int8_t fpu_scratch;       // scratch counter
+    uint16_t xmm_write;       // 1bit of xmmXX removed write
+    uint16_t xmm_removed;     // 1bit if xmmXX was removed
+    uint16_t xmm_used;        // mask of the xmm regs used in this opcode
+    uint16_t ymm_used;        // mask of the ymm regs used in this opcode
+    uint16_t ymm_write;       // 1bit of ymmXX removed write
+    uint16_t ymm_removed;     // 1bit if ymmXX was removed
+    uint16_t xmm_unneeded;    // 1bit for xmmXX were value is not needed
+    uint16_t ymm_unneeded;    // 1bit for ymmXX were value is not needed
+    uint64_t ymm_regs;        // 4bits (0-15) position of 16 ymmXX regs removed
 } vmxcache_t;
 
 typedef enum flagcache_s {
-    status_unk = 0,         // unknown deferred flags status
-    status_set,             // deferred flags set to something (not 0)
-    status_none_pending,    // deferred flags set to 0, but still pending the write to x64emu_t
-    status_none,            // deferred flags set to 0, written to x64emu_t
+    status_unk = 0,      // unknown deferred flags status
+    status_set,          // deferred flags set to something (not 0)
+    status_none_pending, // deferred flags set to 0, but still pending the write to x64emu_t
+    status_none,         // deferred flags set to 0, written to x64emu_t
 } flagcache_t;
 
 typedef struct callret_s callret_t;
@@ -132,6 +132,10 @@ typedef struct instruction_ppc64le_s {
     uint8_t             nat_flags_sign:1;
     uint8_t             nat_flags_sf:1;
     uint8_t             nat_flags_needsign:1;
+    uint8_t             nat_flags_needcarry:1;
+    uint8_t             nat_flags_op32:1;   // the fused compare operands are 32-bit values (use cmpw/cmplw)
+    uint8_t             df_claimed:1;     // declared SF_SET_DF: promises to write emu->df itself
+    uint8_t             df_written:1;     // emitted a store to emu->df (or a C helper that does)
     uint8_t             no_scratch_usage:1;  // this opcode does not use scratch register
     uint8_t             nat_flags_op1;
     uint8_t             nat_flags_op2;
@@ -142,6 +146,15 @@ typedef struct instruction_ppc64le_s {
     unsigned            fpu_used:1; // any xmm/ymm/x87/mmx reg used
     unsigned            fpupurge:1;   // this opcode will purge all fpu regs
     uint16_t            nat_next_inst;
+    // upper-32 tracking (see updateUpperLiveness): an audited ("agnostic") instruction only reads the upper
+    // 32 bits of the GPRs in up32_read; any other instruction is assumed to read them all.
+    uint8_t             up32_agnostic:1;  // the instruction marked its upper-32 reads and 32-bit writes
+    uint16_t            up32_read;        // GPRs whose upper 32 bits are read by this instruction
+    uint16_t            up32_write64;     // GPRs written as 64-bit (upper 32 become defined)
+    uint16_t            up32_write32;     // GPRs written as 32-bit (subset of up32_write64)
+    uint16_t            up32_zero;        // GPRs guaranteed zero-extended at instruction exit
+    uint16_t            up32_skip;        // GPRs whose zero-up after a 32-bit write can be skipped
+    uint16_t            up32_pending;     // GPRs whose upper 32 bits are stale at entry
     flagcache_t         f_exit;     // flags status at end of instruction
     vmxcache_t          v;          // vmxcache at end of instruction (but before poping)
     flagcache_t         f_entry;    // flags status before the instruction begin
@@ -149,70 +162,72 @@ typedef struct instruction_ppc64le_s {
 } instruction_ppc64le_t;
 
 typedef struct dynarec_ppc64le_s {
+    uint8_t             geted_notrunc:1;  // geted: don't truncate a computed 32-bit address (caller zero-ups the result)
     instruction_ppc64le_t* insts;
-    int32_t             size;
-    int32_t             cap;
-    uintptr_t           start;      // start of the block
-    uintptr_t           end;        // maximum end of the block (only used in pass0)
-    uint32_t            isize;      // size in bytes of x64 instructions included
-    uint32_t            prefixsize; // size in byte of the prefix of the block
-    void*               block;      // memory pointer where next instruction is emitted
-    uintptr_t           native_start;  // start of the ppc64le code
-    size_t              native_size;   // size of emitted ppc64le code
-    uintptr_t           last_ip;    // last set IP in RIP (or NULL if unclean state)
-    uint64_t*           table64;    // table of 64bits values
-    int                 table64size;// size of table (will be appended at end of executable code)
-    int                 table64cap;
-    uintptr_t           tablestart;
-    uintptr_t           jmp_next;   // address of the jump_next address
-    flagcache_t         f;
-    vmxcache_t          v;          // cache for VMX regs from fpu, plus x87 stack delta
-    uintptr_t*          next;       // variable array of "next" jump address
-    int                 next_sz;
-    int                 next_cap;
-    int*                jmps;       // variable array of jump instructions
-    int                 jmp_sz;
-    int                 jmp_cap;
-    int                 peeking_flags;
-    int*                predecessor;// single array of all predecessor
-    dynablock_t*        dynablock;
-    instsize_t*         instsize;
-    size_t              insts_size; // size of the instruction size array (calculated)
-    int                 callret_size;   // size of the array
-    callret_t*          callrets;   // array of callret return, with NOP / UDF depending if the block is clean or dirty
-    uintptr_t           forward;    // address of the last end of code while testing forward
-    uintptr_t           forward_to; // address of the next jump to (to check if everything is ok)
-    int32_t             forward_size;   // size at the forward point
-    int                 forward_ninst;  // ninst at the forward point
-    uint16_t            ymm_zero;   // bitmap of ymm to zero at purge
-    uint8_t             smwrite;    // for strongmem model emulation
-    uint8_t             doublepush;
-    uint8_t             doublepop;
-    uint8_t             always_test;
-    uint8_t             abort;      // abort the creation of the block
-    uint8_t             use_x87:1;  // set if x87 regs are used
-    uint8_t             use_mmx:1;
-    uint8_t             use_xmm:1;
-    uint8_t             use_ymm:1;
-    uint8_t             is_file_mapped:1;   // if the memory is a mapped file (probably binary, not a memory)
-    void*               gdbjit_block;
-    uint32_t            need_x87check;  // needs x87 precision control check if non-null, or 0 if not
-    uint32_t            need_dump;     // need to dump the block
-    int                 need_reloc; // does the dynablock need relocations
-    int                 reloc_size;
-    uint32_t*           relocs;
-    box64env_t*         env;
+    int32_t size;
+    int32_t cap;
+    uintptr_t start;        // start of the block
+    uintptr_t end;          // maximum end of the block (only used in pass0)
+    uint32_t isize;         // size in bytes of x64 instructions included
+    uint32_t prefixsize;    // size in byte of the prefix of the block
+    void* block;            // memory pointer where next instruction is emitted
+    uintptr_t native_start; // start of the ppc64le code
+    size_t native_size;     // size of emitted ppc64le code
+    uintptr_t last_ip;      // last set IP in RIP (or NULL if unclean state)
+    uint64_t* table64;      // table of 64bits values
+    int table64size;        // size of table (will be appended at end of executable code)
+    int table64cap;
+    uintptr_t tablestart;
+    uintptr_t jmp_next; // address of the jump_next address
+    flagcache_t f;
+    vmxcache_t v;    // cache for VMX regs from fpu, plus x87 stack delta
+    uintptr_t* next; // variable array of "next" jump address
+    int next_sz;
+    int next_cap;
+    int* jmps; // variable array of jump instructions
+    int jmp_sz;
+    int jmp_cap;
+    int peeking_flags;
+    int* predecessor; // single array of all predecessor
+    dynablock_t* dynablock;
+    instsize_t* instsize;
+    size_t insts_size;    // size of the instruction size array (calculated)
+    int callret_size;     // size of the array
+    callret_t* callrets;  // array of callret return, with NOP / UDF depending if the block is clean or dirty
+    uintptr_t forward;    // address of the last end of code while testing forward
+    uintptr_t forward_to; // address of the next jump to (to check if everything is ok)
+    int32_t forward_size; // size at the forward point
+    int forward_ninst;    // ninst at the forward point
+    uint16_t ymm_zero;    // bitmap of ymm to zero at purge
+    uint8_t smwrite;      // for strongmem model emulation
+    uint8_t doublepush;
+    uint8_t doublepop;
+    uint8_t always_test;
+    uint8_t abort;       // abort the creation of the block
+    uint8_t use_x87 : 1; // set if x87 regs are used
+    uint8_t use_mmx : 1;
+    uint8_t use_xmm : 1;
+    uint8_t use_ymm : 1;
+    uint8_t is_file_mapped : 1; // if the memory is a mapped file (probably binary, not a memory)
+    uint8_t track_inuse : 1;    // the block contains a call site: count it in dynablock in_used (enter/leave)
+    void* gdbjit_block;
+    uint32_t need_x87check; // needs x87 precision control check if non-null, or 0 if not
+    uint32_t need_dump;     // need to dump the block
+    int need_reloc;         // does the dynablock need relocations
+    int reloc_size;
+    uint32_t* relocs;
+    box64env_t* env;
 } dynarec_ppc64le_t;
 
-void add_next(dynarec_ppc64le_t *dyn, uintptr_t addr);
-uintptr_t get_closest_next(dynarec_ppc64le_t *dyn, uintptr_t addr);
-void add_jump(dynarec_ppc64le_t *dyn, int ninst);
-int get_first_jump(dynarec_ppc64le_t *dyn, int next);
-int get_first_jump_addr(dynarec_ppc64le_t *dyn, uintptr_t next);
-int is_nops(dynarec_ppc64le_t *dyn, uintptr_t addr, int n);
+void add_next(dynarec_ppc64le_t* dyn, uintptr_t addr);
+uintptr_t get_closest_next(dynarec_ppc64le_t* dyn, uintptr_t addr);
+void add_jump(dynarec_ppc64le_t* dyn, int ninst);
+int get_first_jump(dynarec_ppc64le_t* dyn, int next);
+int get_first_jump_addr(dynarec_ppc64le_t* dyn, uintptr_t next);
+int is_nops(dynarec_ppc64le_t* dyn, uintptr_t addr, int n);
 
-int isTable64(dynarec_ppc64le_t *dyn, uint64_t val); // return 1 if val already in Table64
-int Table64(dynarec_ppc64le_t *dyn, uint64_t val, int pass);  // add a value to table64 (if needed) and gives back the offset to use
+int isTable64(dynarec_ppc64le_t* dyn, uint64_t val);         // return 1 if val already in Table64
+int Table64(dynarec_ppc64le_t* dyn, uint64_t val, int pass); // add a value to table64 (if needed) and gives back the offset to use
 
 void CreateJmpNext(void* addr, void* next);
 
@@ -249,7 +264,6 @@ void CreateJmpNext(void* addr, void* next);
     MV(x1, xRIP);                   \
     STORE_XEMU_CALL();              \
     MOV64x(x2, B);                  \
-    CALL(const_##A, -1, x1, x2);   \
-    LOAD_XEMU_CALL()
+    CALL(const_##A, -1, x1, x2)
 
 #endif //__DYNAREC_PPC64LE_PRIVATE_H_

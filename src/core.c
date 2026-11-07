@@ -1574,6 +1574,10 @@ int initialize(int argc, const char **argv, char** env, x64emu_t** emulator, elf
     }
     // and handle PLT
     RelocateElfPlt(my_context->maplib, NULL, 0, 0, elf_header);
+    #ifdef BOX32
+    // native replacements for known hot functions statically linked in some 32-bit games
+    if (box64_is32bits) InstallGameHooks32(elf_header);
+    #endif
     // deferred init
     setupTraceInit();
     RunDeferredElfInit(emu);

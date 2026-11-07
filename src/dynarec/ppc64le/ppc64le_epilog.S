@@ -13,6 +13,8 @@
 .text
 .align 4
 
+.extern ppc64le_shadow_purge
+
 .global ppc64le_epilog
 .type ppc64le_epilog, @function
 ppc64le_epilog:
@@ -40,6 +42,18 @@ ppc64le_epilog:
 
     // Store RIP (r9 = xRIP, must contain current IP)
     std     RIP, (8 * 17)(Emu)      // r9
+
+    // The callret shadow stack (below us, up to the prolog frame) is about to be discarded:
+    // release the blocks it keeps in use. Frame first, so the callee's LR/CR saves don't land
+    // on the entries; r2 is reloaded from the prolog frame like ppc64le_next does.
+    mr      %r3, Emu                // arg0 = emu
+    mr      %r4, %r1                // arg1 = current native SP (first shadow entry)
+    stdu    %r1, -48(%r1)
+    ld      %r2, 808(Emu)
+    ld      %r2, 24(%r2)
+    bl      ppc64le_shadow_purge
+    nop
+    addi    %r1, %r1, 48
 
     // Restore stack pointer from emu->xSPSave
     // xSPSave stores the frame base SP saved by the prolog

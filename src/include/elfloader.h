@@ -97,6 +97,8 @@ void* ElfGetWeakSymbolStartEnd(elfheader_t* head, uintptr_t *offs, uintptr_t *sz
 void* ElfGetSymbolStartEnd(elfheader_t* head, uintptr_t *offs, uintptr_t *end, const char* symname, int* ver, const char** vername, int local, int* veropt);
 int ElfGetSymTabStartEnd(elfheader_t* head, uintptr_t *offs, uintptr_t *end, const char* symname);
 int ElfGetSymTabStartEnd32(elfheader_t* head, uintptr_t *offs, uintptr_t *end, const char* symname);
+void InstallGameHooks32(elfheader_t* h);
+void InstallUnityHooks(elfheader_t* h);
 int ElfGetSymTabStartEnd64(elfheader_t* head, uintptr_t *offs, uintptr_t *end, const char* symname);
 
 void* GetNativeSymbolUnversioned(void* lib, const char* name);

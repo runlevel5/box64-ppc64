@@ -584,22 +584,25 @@
 // ===========================================================================
 // CR logical operations (XL-form, opcode 19)
 // ===========================================================================
+// XL_gen is the branch flavour with a 2-bit BH field; the CR logical ops take a 5-bit BB
+#define XLcr_gen(opcd, bt, ba, bb, xo) \
+    ((uint32_t)(opcd) << 26 | ((bt) & 0x1F) << 21 | ((ba) & 0x1F) << 16 | ((bb) & 0x1F) << 11 | ((xo) & 0x3FF) << 1)
 // CRAND — CR[BT] = CR[BA] & CR[BB]
-#define CRAND(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 257, 0))
+#define CRAND(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 257))
 // CRANDC — CR[BT] = CR[BA] & ~CR[BB]
-#define CRANDC(bt, ba, bb)     EMIT(XL_gen(19, bt, ba, bb, 129, 0))
+#define CRANDC(bt, ba, bb)     EMIT(XLcr_gen(19, bt, ba, bb, 129))
 // CROR — CR[BT] = CR[BA] | CR[BB]
-#define CROR(bt, ba, bb)       EMIT(XL_gen(19, bt, ba, bb, 449, 0))
+#define CROR(bt, ba, bb)       EMIT(XLcr_gen(19, bt, ba, bb, 449))
 // CRORC — CR[BT] = CR[BA] | ~CR[BB]
-#define CRORC(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 417, 0))
+#define CRORC(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 417))
 // CRXOR — CR[BT] = CR[BA] ^ CR[BB]
-#define CRXOR(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 193, 0))
+#define CRXOR(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 193))
 // CRNAND — CR[BT] = ~(CR[BA] & CR[BB])
-#define CRNAND(bt, ba, bb)     EMIT(XL_gen(19, bt, ba, bb, 225, 0))
+#define CRNAND(bt, ba, bb)     EMIT(XLcr_gen(19, bt, ba, bb, 225))
 // CRNOR — CR[BT] = ~(CR[BA] | CR[BB])
-#define CRNOR(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 33, 0))
+#define CRNOR(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 33))
 // CREQV — CR[BT] = ~(CR[BA] ^ CR[BB])
-#define CREQV(bt, ba, bb)      EMIT(XL_gen(19, bt, ba, bb, 289, 0))
+#define CREQV(bt, ba, bb)      EMIT(XLcr_gen(19, bt, ba, bb, 289))
 // CRSET — set CR bit (pseudo: creqv bt, bt, bt)
 #define CRSET(bt)              CREQV(bt, bt, bt)
 // CRCLR — clear CR bit (pseudo: crxor bt, bt, bt)
@@ -627,6 +630,13 @@
 #define DMB_ISH()              LWSYNC()
 #define DMB_ISHLD()            LWSYNC()
 #define DMB_ISHST()            LWSYNC()
+// All the strong memory barriers are LWSYNC here, so the one ending a SEQ adds nothing for the
+// ordering of the stores: the next SEQ starts with its own LWSYNC before its first store, and an
+// LWSYNC never orders a store before a later load. BOX64_DYNAREC_SEQENDBARRIER=0 drops it.
+#define SMEND_BARRIER()                             \
+    do {                                            \
+        if (BOX64ENV(dynarec_seqendbarrier)) LWSYNC(); \
+    } while (0)
 
 // Cache management
 // DCBST — data cache block store
@@ -1501,6 +1511,12 @@
 // XX3-form with DM(2) in bits 6-7 of the 8-bit xo field
 #define XXPERMDI(Xt, Xa, Xb, dm) \
     EMIT(XX3_form_gen(60, Xt, Xa, Xb, (10 | (((dm) & 0x3) << 5))))
+// XXPERM — VSX vector permute (POWER9, XX3-form, xo=26)
+// For each byte i: XT[i] = (XA || XT_old)[XB[i] & 0x1F]
+// XB is the control vector; XT is destructive (read as second data source, then overwritten)
+#define XXPERM(Xt, Xa, Xb)    EMIT(XX3_form_gen(60, Xt, Xa, Xb, 26))
+// XXPERMR — VSX vector permute reversed (POWER9, XX3-form, xo=58)
+#define XXPERMR(Xt, Xa, Xb)   EMIT(XX3_form_gen(60, Xt, Xa, Xb, 58))
 
 // XX2-form: OPCD(6) | T(5) | 00000 | B(5) | XO(9) | BX(1) | TX(1)
 #define XX2_form_gen(opcd, t, b, xo) \
@@ -1593,6 +1609,34 @@
 // ISEL(RT, RA, RB, BC): if CR bit BC is set, RT=RA; else RT=RB
 // If RA=0, the value 0 is used instead of GPR[0]
 #define ISEL(Rt, Ra, Rb, BC)   EMIT(X_form_gen(31, Rt, Ra, Rb, (((BC) & 0x1F) << 5) | 15, 0))
+
+// ===========================================================================
+// SETBC family — Set Boolean Condition (X-form, opcode 31) — POWER10 / ISA 3.1
+// ===========================================================================
+// Materialize a 0/1 (or 0/-1) GPR directly from a CR bit, replacing the
+// POWER9 "LI + ISEL" idiom. BI selects the CR bit (use BI(cr, CR_xx)).
+// Encodings verified against the POWER10 GNU assembler.
+//   SETBC   RT,BI: RT = CR[BI] ? 1  : 0   (XO=384)
+//   SETBCR  RT,BI: RT = CR[BI] ? 0  : 1   (XO=416)
+//   SETNBC  RT,BI: RT = CR[BI] ? -1 : 0   (XO=448)
+//   SETNBCR RT,BI: RT = CR[BI] ? 0  : -1  (XO=480)
+#define SETBC(Rt, bi)    EMIT(X_form_gen(31, Rt, bi, 0, 384, 0))
+#define SETBCR(Rt, bi)   EMIT(X_form_gen(31, Rt, bi, 0, 416, 0))
+#define SETNBC(Rt, bi)   EMIT(X_form_gen(31, Rt, bi, 0, 448, 0))
+#define SETNBCR(Rt, bi)  EMIT(X_form_gen(31, Rt, bi, 0, 480, 0))
+
+// ===========================================================================
+// Scalar byte-reverse (X-form, opcode 31) — POWER10 / ISA 3.1
+// ===========================================================================
+// Register-to-register byte reverse, replacing the POWER9 store-load
+// (LDBRX/LWBRX) round trip. Destination is RA, source is RS.
+// Encodings verified against the POWER10 GNU assembler.
+//   BRD RA,RS: reverse all 8 bytes of the doubleword  (XO=187)
+//   BRW RA,RS: reverse the 4 bytes within each word    (XO=155)
+//   BRH RA,RS: reverse the 2 bytes within each halfword (XO=219)
+#define BRD(Ra, Rs)      EMIT(X_form_gen(31, Rs, Ra, 0, 187, 0))
+#define BRW(Ra, Rs)      EMIT(X_form_gen(31, Rs, Ra, 0, 155, 0))
+#define BRH(Ra, Rs)      EMIT(X_form_gen(31, Rs, Ra, 0, 219, 0))
 
 // ===========================================================================
 // Convenience macros for the dynarec framework
