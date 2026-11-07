@@ -16,8 +16,9 @@
 ; Registers reserved by framework:
 ;   r12 = pass count
 ;   r13 = total test count
-;   r14 = scratch for checks (restored after)
-;   r15 = current test name pointer
+;   r14 = flags captured by SAVE_FLAGS/CHECK_FLAGS, read by CHECK_FLAGS_EQ
+;         (CHECK_EQ_64 and CHECK_APPROX_PS_64 save and restore it)
+; r15 is free: the checks that use it save and restore it.
 
 BITS 64
 
