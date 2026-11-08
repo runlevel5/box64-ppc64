@@ -27,7 +27,7 @@
                 dyn->insts[ninst].nat_flags_fusion = 1;                                                        \
             else if (dyn->insts[prev].nat_flags_sign && ((A) == (X_SF | X_OF) || (A) == (X_SF | X_OF | X_ZF))) \
                 dyn->insts[ninst].nat_flags_fusion = 1;                                                        \
-            else if (dyn->insts[prev].nat_flags_sf && dyn->insts[prev].nat_flags_sign && (A) == X_SF)          \
+            else if (dyn->insts[prev].nat_flags_sf && (A) == X_SF)          \
                 dyn->insts[ninst].nat_flags_fusion = 1;                                                        \
         }                                                                                                      \
     }                                                                                                          \
@@ -56,7 +56,7 @@
         dyn->insts[ninst].x64.jmp_cond = C;             \
         dyn->insts[ninst].x64.jmp_insts = 0;            \
     } while (0)
-#define BARRIER(A)      if(A!=BARRIER_MAYBE) {fpu_purgecache(dyn, ninst, 0, x1, x2, x3); dyn->insts[ninst].x64.barrier = A;} else dyn->insts[ninst].barrier_maybe = 1
+#define BARRIER(A)      if(A!=BARRIER_MAYBE) {UP32_READALL(); fpu_purgecache(dyn, ninst, 0, x1, x2, x3); dyn->insts[ninst].x64.barrier = A;} else dyn->insts[ninst].barrier_maybe = 1
 #define SET_HASCALLRET()    dyn->insts[ninst].x64.has_callret = 1
 #define NEW_INST \
         ++dyn->size;                            \

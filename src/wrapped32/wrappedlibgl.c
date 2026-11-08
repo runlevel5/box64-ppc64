@@ -500,6 +500,50 @@ EXPORT void my32_glVDPAUUnmapSurfacesNV(x64emu_t* emu, int count, long_t* surfac
     fnc(count, surfaces?surfaces_l:NULL);
 }
 
+typedef unsigned int (*uFv_t)(void);
+typedef unsigned int (*uFu_t)(unsigned int);
+typedef void (*vFip_t)(int, void*);
+
+// glGetError — optionally stub to GL_NO_ERROR to avoid Mesa glthread flush overhead
+EXPORT unsigned int my32_glGetError(x64emu_t* emu)
+{
+    if(BOX64ENV(gl_noerror))
+        return 0;  // GL_NO_ERROR
+    uFv_t fnc = getBridgeFnc2((void*)R_RIP);
+    if(!fnc) fnc=my->glGetError;
+    return fnc();
+}
+
+// glCheckFramebufferStatus — return GL_FRAMEBUFFER_COMPLETE when gl_noerror is set
+EXPORT unsigned int my32_glCheckFramebufferStatus(x64emu_t* emu, unsigned int target)
+{
+    if(BOX64ENV(gl_noerror))
+        return 0x8CD5;  // GL_FRAMEBUFFER_COMPLETE
+    uFu_t fnc = getBridgeFnc2((void*)R_RIP);
+    if(!fnc) fnc=my->glCheckFramebufferStatus;
+    return fnc(target);
+}
+
+// glCheckFramebufferStatusEXT — return GL_FRAMEBUFFER_COMPLETE when gl_noerror is set
+EXPORT unsigned int my32_glCheckFramebufferStatusEXT(x64emu_t* emu, unsigned int target)
+{
+    if(BOX64ENV(gl_noerror))
+        return 0x8CD5;  // GL_FRAMEBUFFER_COMPLETE
+    uFu_t fnc = getBridgeFnc2((void*)R_RIP);
+    if(!fnc) fnc=my->glCheckFramebufferStatusEXT;
+    return fnc(target);
+}
+
+// glStringMarkerGREMEDY — debug marker, no-op when gl_noerror is set
+EXPORT void my32_glStringMarkerGREMEDY(x64emu_t* emu, int len, void* string)
+{
+    if(BOX64ENV(gl_noerror))
+        return;
+    vFip_t fnc = getBridgeFnc2((void*)R_RIP);
+    if(!fnc) fnc=my->glStringMarkerGREMEDY;
+    fnc(len, string);
+}
+
 #include "wrappedlib_init32.h"
 
 gl_wrappers_t* getGLProcWrapper32(box64context_t* context, glprocaddress_t procaddress)

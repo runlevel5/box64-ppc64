@@ -61,6 +61,7 @@
 #() WFW
 #() WFu
 #() WFp
+#() uFE
 #() uFv
 #() uFi
 #() uFC
@@ -275,6 +276,7 @@
 #() WFpi
 #() WFpW
 #() WFpp
+#() uFEu
 #() uFEp
 #() uFii
 #() uFiu
@@ -4248,6 +4250,7 @@
 #!defined(PPC64LE) iFiLN
 #() vFEv -> vFE
 #() iFEv -> iFE
+#() uFEv -> uFE
 #() lFEv -> lFE
 #() pFEv -> pFE
 #() iFEvpp -> iFEpp
@@ -6036,10 +6039,17 @@ wrappedlibfuse:
 wrappedlibgl:
 - iFu:
   - glXSwapIntervalMESA
+- uFv:
+  - glGetError
+- uFu:
+  - glCheckFramebufferStatus
+  - glCheckFramebufferStatusEXT
 - pFp:
   - glGetVkProcAddrNV
   - glXGetProcAddress
   - glXGetProcAddressARB
+- vFip:
+  - glStringMarkerGREMEDY
 - vFpp:
   - glDebugMessageCallback
   - glDebugMessageCallbackAMD

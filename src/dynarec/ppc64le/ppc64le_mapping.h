@@ -89,6 +89,8 @@ Note: In little-endian mode, SIMD element ordering matches x86 — minimal swizz
 
 // convert a x86 register to native according to the register mapping
 #define TO_NAT(A) (((uint8_t[]) { 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 })[(A)])
+// convert a native register to x86 GPR (or -1 if not a GPR), reverse of TO_NAT
+#define TO_X64(A) (((int8_t[]) { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, -1, -1 })[(A)])
 #define IS_GPR(A) (((uint8_t[]) { \
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, \

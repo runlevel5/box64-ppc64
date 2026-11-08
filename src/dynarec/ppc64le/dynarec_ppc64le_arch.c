@@ -68,6 +68,7 @@ typedef struct arch_arch_s
     #undef GO
     uint16_t unaligned:1;
     uint16_t seq:10;    // how many instruction on the same values
+    uint16_t up32;      // GPRs with a stale upper 32 bits at the start of this instruction
 } arch_arch_t;
 
 typedef struct arch_build_s
@@ -76,6 +77,7 @@ typedef struct arch_build_s
     SUPER()
     #undef GO
     uint8_t unaligned;
+    uint16_t up32;
     #define GO(A) arch_##A##_t A##_;
     SUPER()
     #undef GO
@@ -97,6 +99,7 @@ static int arch_build(dynarec_ppc64le_t* dyn, int ninst, arch_build_t* arch, int
     }
     // opcode can handle unaligned
     arch->unaligned = dyn->insts[ninst].unaligned;
+    arch->up32 = dyn->insts[ninst].up32_pending;
     if(!noarch) {
         // go through all vmxcache to gather regs assignments
         for(int i=0; i<32; ++i)
@@ -157,7 +160,7 @@ static int arch_build(dynarec_ppc64le_t* dyn, int ninst, arch_build_t* arch, int
             arch->x87_.delta = dyn->insts[ninst].v.x87stack;
         }
     }
-    return arch->flags + arch->x87 + arch->mmx + arch->sse + arch->ymm + arch->unaligned;
+    return arch->flags + arch->x87 + arch->mmx + arch->sse + arch->ymm + arch->unaligned + (arch->up32 ? 1 : 0);
 }
 
 static int sizeof_arch(arch_arch_t* arch)
@@ -212,6 +215,7 @@ static void build_next(arch_arch_t* arch, arch_build_t* build)
     SUPER()
     #undef GO
     arch->unaligned = build->unaligned;
+    arch->up32 = build->up32;
     arch->seq = 0;
     void* p = ((void*)arch)+sizeof(arch_arch_t);
     #define GO(A)                                           \
@@ -259,7 +263,7 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
         return;
     int ninst = getX64AddressInst(db, x64pc);
     dynarec_log(LOG_INFO, "adjust_arch(...), db=%p, x64pc=%p, nints=%d", db, (void*)x64pc, ninst);
-    if(ninst<0) {
+    if(ninst<0 || ninst>=db->isize) {
         dynarec_log_prefix(0, LOG_INFO, "\n");
         return;
     }
@@ -268,18 +272,21 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
         CHECK_FLAGS(emu);
         return;
     }
-    // look for state at ninst-1
-    arch_arch_t* arch = db->arch;
+    // the register caches come from the state at ninst-1, the flags and the
+    // stale upper halves from the entry state of ninst itself
+    arch_arch_t* arch = db->arch;   // state at ninst-1
+    arch_arch_t* cur = arch;        // state at ninst
     arch_arch_t* next = arch;
     #define GO(A) arch_##A##_t* A = NULL;
     SUPER()
     #undef GO
-    int i = 0;
-    while(i<(ninst)) {  // this will look for ninst-1 state
-        arch = next;
-        dynarec_log_prefix(0, (i<(ninst-1))?LOG_DEBUG:LOG_INFO, "[ seq=%d%s%s%s%s%s ] ", arch->seq, arch->flags?" Flags":"", arch->x87?" x87":"", arch->mmx?" MMX":"", arch->sse?" SSE":"", arch->ymm?" YMM":"");
-        i += 1+arch->seq;
-        next = (arch_arch_t*)((uintptr_t)next + sizeof_arch(arch));
+    int i = -1;
+    while(i<ninst) {
+        cur = next;
+        if(i<ninst-1) arch = cur;
+        dynarec_log_prefix(0, (i<(ninst-1))?LOG_DEBUG:LOG_INFO, "[ seq=%d%s%s%s%s%s ] ", cur->seq, cur->flags?" Flags":"", cur->x87?" x87":"", cur->mmx?" MMX":"", cur->sse?" SSE":"", cur->ymm?" YMM":"");
+        i += 1+cur->seq;
+        next = (arch_arch_t*)((uintptr_t)next + sizeof_arch(cur));
     }
     int sz = sizeof(arch_arch_t);
     #define GO(A)                                   \
@@ -289,11 +296,21 @@ void adjust_arch(dynablock_t* db, x64emu_t* emu, ucontext_t* p, uintptr_t x64pc)
     }
     SUPER()
     #undef GO
+    flags = cur->flags ? (arch_flags_t*)((uintptr_t)cur + sizeof(arch_arch_t)) : NULL;
     if(flags) {
         dynarec_log_prefix(0, LOG_INFO, " flags[%s] ", flags->defered?"defered":"");
         if(flags->defered) {
             CHECK_FLAGS(emu);
         }
+    } else {
+        emu->df = d_none;
+    }
+    // registers whose zero-up was skipped by the dynarec: the emu copy has stale upper bits
+    uint16_t up32 = cur->up32;
+    while (up32) {
+        int r = __builtin_ctz(up32);
+        up32 &= up32 - 1;
+        emu->regs[r].q[0] &= 0xffffffffULL;
     }
     // PPC64LE signal context:
     // mcontext_t.gp_regs[0..31] = r0-r31

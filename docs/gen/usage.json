@@ -1185,6 +1185,25 @@
     ]
   },
   {
+    "name": "BOX64_GL_NOERROR",
+    "description": "Stub OpenGL error-checking calls (glGetError, glCheckFramebufferStatus[EXT], glStringMarkerGREMEDY) to speed up games that call them excessively.",
+    "category": "Compatibility",
+    "wine": false,
+    "configurator": false,
+    "options": [
+      {
+        "key": "0",
+        "description": "Call the real OpenGL functions.",
+        "default": true
+      },
+      {
+        "key": "1",
+        "description": "glGetError always returns GL_NO_ERROR, glCheckFramebufferStatus[EXT] always returns GL_FRAMEBUFFER_COMPLETE and glStringMarkerGREMEDY is a no-op.",
+        "default": false
+      }
+    ]
+  },
+  {
     "name": "BOX64_IGNOREINT3",
     "description": "Ignore INT3 instructions.",
     "category": "Compatibility",

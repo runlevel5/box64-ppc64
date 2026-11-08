@@ -135,6 +135,7 @@ void refreshProtection(uintptr_t addr);
 void updateDBHostProtectionForGuestRange(uintptr_t addr, size_t size);
 uint32_t getProtection(uintptr_t addr);
 uint32_t getProtection_fast(uintptr_t addr);
+uint32_t getProtection_cached(uintptr_t addr);
 int getMmapped(uintptr_t addr);
 int getMAllocated(uintptr_t addr);
 int memExist(uintptr_t addr);

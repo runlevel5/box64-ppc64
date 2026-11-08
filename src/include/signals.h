@@ -79,5 +79,6 @@ void cancel_deferred_signal_processing(x64emu_t* emu);
 
 void init_signal_helper(box64context_t* context);
 void fini_signal_helper(void);
+void setupNativeAltStack(void);
 
 #endif //__SIGNALS_H__

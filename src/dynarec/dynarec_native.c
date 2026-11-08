@@ -75,7 +75,7 @@ void add_next(dynarec_native_t* dyn, uintptr_t addr)
             dyn->next[dyn->next_sz++] = addr;
         return;
     }
-    if (!BOX64DRENV(dynarec_bigblock))
+    if (!BOX64DRBIGBLOCK())
         return;
     int ret;
     kh_put(nextset, khnextset, addr, &ret);
@@ -789,6 +789,8 @@ dynablock_t* FillBlock64(uintptr_t addr, int is32bits, int inst_max, int is_new,
             #if defined(LA64) || defined(RV64)
             updateUpperLiveness(&helper);
             updateRspMerge(&helper, is32bits);
+            #elif defined(PPC64LE)
+            updateUpperLiveness(&helper);
             #endif
             // remove fpu stuff on non-executed code
             for(int i=1; i<helper.size-1; ++i)
@@ -968,6 +970,9 @@ dynablock_t* FillBlock64(uintptr_t addr, int is32bits, int inst_max, int is_new,
             #endif
             block->dirty = block->always_test;
             block->is32bits = is32bits;
+            #ifdef PPC64LE
+            block->in_used = helper.track_inuse ? ppc64le_inuse_alloc() : 0; // per-thread counter index
+            #endif
             block->relocsize = helper.reloc_size*sizeof(uint32_t);
             if(arch_size) {
                 block->arch_size = arch_size;

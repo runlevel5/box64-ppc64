@@ -293,6 +293,8 @@
 #() CFXL -> CFXL
 #() WFEp -> WFEp
 #() WFpp -> WFpp
+#() uFEv -> uFEv
+#() uFEu -> uFEu
 #() uFEp -> uFEp
 #() uFii -> uFii
 #() uEiS -> uEiS
@@ -2816,11 +2818,17 @@ wrappedlibegl:
 wrappedlibgl:
 - iFi:
   - glXSwapIntervalMESA
+- uFv:
+  - glGetError
+- uFu:
+  - glCheckFramebufferStatus
+  - glCheckFramebufferStatusEXT
 - pFp:
   - glGetVkProcAddrNV
   - glXGetProcAddress
   - glXGetProcAddressARB
 - vFip:
+  - glStringMarkerGREMEDY
   - glVDPAUMapSurfacesNV
   - glVDPAUUnmapSurfacesNV
 - vFpp:
